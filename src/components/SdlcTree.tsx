@@ -14,6 +14,7 @@ import {
   Material,
   Mesh,
   MeshBasicMaterial,
+  NormalBlending,
   PerspectiveCamera,
   Points,
   PointsMaterial,
@@ -27,7 +28,6 @@ import {
   WebGLRenderer,
 } from "three";
 import { treeStages } from "@/app/content";
-import { drawSplat, makeSplat, type Splat } from "@/lib/splat";
 
 type Rng = () => number;
 type Anim = {
@@ -36,24 +36,28 @@ type Anim = {
   hover: number;
   yaw: number;
   targetYaw: number;
+  uy: number; // sideways rotation the visitor has dragged or scrolled in
+  uyT: number;
   px: number;
   py: number;
-  cam: number;
+  zoom: number;
+  look: Vector3;
   flight: { from: number; to: number; start: number } | null;
-  queue: { i: number; big: boolean }[];
-  lastSplat: number[];
+  card: { x: number; y: number; init: boolean };
   reduced: boolean;
 };
 type Cloud = { pos: number[]; col: number[]; bPos: number[]; bCol: number[] };
 
 const N = treeStages.length;
 const FLIGHT_MS = 1300;
-const WIDE_W = 1100; // at this width and above: stage list on the left, text on the right
+const WIDE_W = 1100; // at this width and above the flashcard floats beside the point you hover
 const FOV = 34;
-const TREE_X = 0.4; // where the tree sits across a wide screen (leaves room for the text on the right)
 const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const AMBER = new Color(1, 0.62, 0.26);
+const DENSITY = [820, 620, 520, 440, 390]; // scan points per unit length, by branching depth
 const pad = (n: number) => String(n).padStart(2, "0");
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const wrapDeg = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 const rgb = (s: string) => {
   const [r, g, b] = s.split(",").map(Number);
   return new Color(r / 255, g / 255, b / 255);
@@ -81,7 +85,7 @@ function rng(seed: number): Rng {
   };
 }
 
-const trunkAt = (y: number) => new Vector3(0.025 * Math.sin(y * 3.2), y, -0.02 * Math.cos(y * 2.4));
+const trunkAt = (y: number) => new Vector3(0.03 * Math.sin(y * 3.2), y, -0.025 * Math.cos(y * 2.4));
 
 function newCloud(): Cloud {
   return { pos: [], col: [], bPos: [], bCol: [] };
@@ -109,28 +113,48 @@ function shell(c: Cloud, curve: CatmullRomCurve3, count: number, r0: number, r1:
   }
 }
 
-/** Fine twigs that fork off a curve, and smaller twigs off those. */
-function twigs(c: Cloud, curve: CatmullRomCurve3, n: number, len: number, color: Color, r: Rng, depth: number) {
-  for (let k = 0; k < n; k++) {
-    const u = 0.2 + 0.75 * r();
-    const base = curve.getPointAt(u);
-    const tan = curve.getTangentAt(u);
-    const dir = new Vector3(tan.x + (r() - 0.5) * 1.4, tan.y + 0.15 + (r() - 0.3) * 0.6, tan.z + (r() - 0.5) * 1.4).normalize();
-    const L = len * (0.6 + 0.8 * r());
-    const mid = base.clone().addScaledVector(dir, L * 0.5).add(new Vector3((r() - 0.5) * L * 0.3, (r() - 0.5) * L * 0.2, (r() - 0.5) * L * 0.3));
-    const end = base.clone().addScaledVector(dir, L).add(new Vector3(0, L * 0.1, 0));
-    const cur = new CatmullRomCurve3([base, mid, end]);
-    shell(c, cur, Math.round(50 + L * 450), 0.0055, 0.0015, color, r);
-    if (depth > 0) twigs(c, cur, 2, L * 0.55, color, r, depth - 1);
-  }
-}
-
+/** A small mass of leaves. */
 function foliage(c: Cloud, centre: Vector3, radius: number, count: number, color: Color, r: Rng) {
   for (let k = 0; k < count; k++) {
     const u = r() * Math.PI * 2;
     const v = Math.acos(2 * r() - 1);
     const d = radius * Math.pow(r(), 0.55);
-    emit(c, new Vector3(centre.x + d * Math.sin(v) * Math.cos(u), centre.y + d * Math.cos(v) * 0.7, centre.z + d * Math.sin(v) * Math.sin(u)), color, r);
+    emit(c, new Vector3(centre.x + d * Math.sin(v) * Math.cos(u), centre.y + d * Math.cos(v) * 0.8, centre.z + d * Math.sin(v) * Math.sin(u)), color, r);
+  }
+}
+
+type Grower = { c: Cloud; color: Color; r: Rng; q: number; ends: Vector3[] };
+
+/**
+ * Grows one limb and, recursively, everything that forks from it: each limb wanders a little, then
+ * splits into two or three shorter, thinner limbs at 25 to 55 degrees, until the twigs, which end in
+ * a tiny cluster of leaves. This is what gives the tree its natural, irregular shape.
+ */
+function grow(g: Grower, start: Vector3, dir: Vector3, len: number, rad: number, depth: number, maxD: number, up: number) {
+  const { r } = g;
+  const d = dir.clone().normalize();
+  const pts = [start.clone()];
+  const segs = 3;
+  for (let k = 0; k < segs; k++) {
+    d.add(new Vector3((r() - 0.5) * 0.55, (r() - 0.5) * 0.3 + up, (r() - 0.5) * 0.55)).normalize();
+    pts.push(pts[k].clone().addScaledVector(d, len / segs));
+  }
+  const curve = new CatmullRomCurve3(pts);
+  shell(g.c, curve, Math.max(8, Math.round(len * DENSITY[Math.min(depth, 4)] * g.q)), rad, rad * 0.35, g.color, r);
+  const tip = pts[segs];
+  if (depth >= maxD) {
+    foliage(g.c, tip, 0.04 + r() * 0.035, Math.round(20 * g.q), g.color, r);
+    g.ends.push(tip);
+    return;
+  }
+  const kids = depth === 0 ? 3 : r() < 0.35 ? 3 : 2;
+  for (let k = 0; k < kids; k++) {
+    const u = k === 0 ? 1 : 0.5 + 0.42 * r();
+    const sp = curve.getPointAt(u);
+    const tan = curve.getTangentAt(u);
+    const axis = new Vector3(r() - 0.5, r() - 0.5, r() - 0.5).cross(tan).normalize();
+    const ang = (k === 0 ? 0.35 : 0.55 + r() * 0.5) * (r() < 0.5 ? 1 : -1);
+    grow(g, sp, tan.clone().applyAxisAngle(axis, ang), len * (0.62 + 0.14 * r()), rad * 0.64, depth + 1, maxD, up * 0.8);
   }
 }
 
@@ -169,12 +193,12 @@ function glowTexture(sharp: boolean) {
 function makeBird(color: Color, glow: CanvasTexture) {
   const group = new Group();
   const mat = new MeshBasicMaterial({ color, side: DoubleSide });
-  const body = new Mesh(new SphereGeometry(0.014, 12, 8), mat);
+  const body = new Mesh(new SphereGeometry(0.016, 12, 8), mat);
   body.scale.set(1.25, 0.8, 0.8);
   group.add(body);
   const wing = (sign: number) => {
     const g = new BufferGeometry();
-    g.setAttribute("position", new Float32BufferAttribute([0, 0.004, 0, sign * 0.062, 0.016, 0, sign * 0.032, -0.012, 0], 3));
+    g.setAttribute("position", new Float32BufferAttribute([0, 0.004, 0, sign * 0.07, 0.018, 0, sign * 0.036, -0.014, 0], 3));
     const pivot = new Group();
     pivot.add(new Mesh(g, mat));
     group.add(pivot);
@@ -183,71 +207,92 @@ function makeBird(color: Color, glow: CanvasTexture) {
   const wingL = wing(-1);
   const wingR = wing(1);
   const halo = new Sprite(new SpriteMaterial({ map: glow, color, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.4 }));
-  halo.scale.setScalar(0.08);
+  halo.scale.setScalar(0.09);
   group.add(halo);
   return { group, wingL, wingR, halo, mat };
 }
 
+/**
+ * A full-grown tree, laser-scanned in feel: a thick trunk and nine main boughs, one per feature.
+ * Every bough forks again and again into limbs, branches and twigs, ending in tiny leaf clusters.
+ * Each bough carries its feature's colour, and every twig end is a glowing point you can hover.
+ */
 function buildTree(sharp: CanvasTexture, glow: CanvasTexture) {
-  const r = rng(7);
+  const r = rng(23);
   const root = new Group();
+  // Fewer points on weaker machines.
+  const q = Math.max(0.55, Math.min(1, (navigator.hardwareConcurrency || 4) / 8));
+  const bark = new Color(0.55, 0.68, 0.86);
+  const rootTone = new Color(0.45, 0.56, 0.72);
 
-  // Trunk and roots
-  const trunkPts = Array.from({ length: 12 }, (_, k) => trunkAt(-1.05 + (k * 1.95) / 11));
+  // Trunk, leader and roots
+  const trunkPts = Array.from({ length: 14 }, (_, k) => trunkAt(-1.05 + (k * 1.7) / 13));
   const trunkCloud = newCloud();
-  shell(trunkCloud, new CatmullRomCurve3(trunkPts), 6500, 0.06, 0.017, new Color(0.55, 0.68, 0.86), r);
+  shell(trunkCloud, new CatmullRomCurve3(trunkPts), Math.round(15000 * q), 0.105, 0.05, bark, r);
+  shell(trunkCloud, new CatmullRomCurve3(Array.from({ length: 5 }, (_, k) => trunkAt(0.6 + (k * 0.5) / 4))), Math.round(2000 * q), 0.05, 0.012, bark, r);
   layers(trunkCloud, sharp, 0.02, root);
-  const rootCloud = newCloud();
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2 + r() * 0.4;
-    const len = 0.5 + r() * 0.3;
-    const pts = new QuadraticBezierCurve3(trunkAt(-1.0), new Vector3(Math.cos(a) * 0.2, -1.1, Math.sin(a) * 0.2), new Vector3(Math.cos(a) * len, -1.16, Math.sin(a) * len)).getPoints(8);
-    const cur = new CatmullRomCurve3(pts);
-    shell(rootCloud, cur, 700, 0.032, 0.005, new Color(0.45, 0.56, 0.72), r);
-    twigs(rootCloud, cur, 4, 0.14, new Color(0.45, 0.56, 0.72), r, 1);
-  }
-  layers(rootCloud, sharp, 0.018, root);
 
-  // One branch per stage, each its own colour and its own glowing node.
+  const rootCloud = newCloud();
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2 + r() * 0.4;
+    const len = 0.55 + r() * 0.4;
+    const pts = new QuadraticBezierCurve3(trunkAt(-0.95), new Vector3(Math.cos(a) * 0.22, -1.08, Math.sin(a) * 0.22), new Vector3(Math.cos(a) * len, -1.14, Math.sin(a) * len)).getPoints(8);
+    const cur = new CatmullRomCurve3(pts);
+    shell(rootCloud, cur, Math.round(800 * q), 0.045, 0.006, rootTone, r);
+    grow({ c: rootCloud, color: rootTone, r, q, ends: [] }, pts[6], new Vector3(Math.cos(a), -0.15, Math.sin(a)), 0.22, 0.01, 3, 4, -0.02);
+  }
+  for (let k = 0; k < 1800 * q; k++) {
+    const a = r() * Math.PI * 2;
+    const d = 0.25 + 1.5 * Math.sqrt(r());
+    emit(rootCloud, new Vector3(Math.cos(a) * d, -1.1 + (r() - 0.5) * 0.02, Math.sin(a) * d), rootTone, r);
+  }
+  layers(rootCloud, sharp, 0.016, root);
+
+  // Unlabelled limbs that fill out the crown.
+  const filler = newCloud();
+  const fillerTone = new Color(0.5, 0.64, 0.88);
+  for (let k = 0; k < 9; k++) {
+    const h = 0.1 + r() * 0.75;
+    const a = r() * Math.PI * 2;
+    grow({ c: filler, color: fillerTone, r, q, ends: [] }, trunkAt(h), new Vector3(Math.cos(a) * 0.8, 0.55, Math.sin(a) * 0.8), 0.46, 0.026, 1, 4, 0.05);
+  }
+  layers(filler, sharp, 0.018, root);
+
+  // One bough per feature: its whole sub-tree carries the feature's colour.
   const branches = treeStages.map((stage, i) => {
     const col = rgb(stage.color);
     const tint = col.clone().lerp(new Color(1, 1, 1), 0.1);
-    const h = -0.72 + i * 0.17;
-    const th = i * 2.39996; // golden angle: branches spiral evenly around the trunk
-    const R = 0.72 + (i % 3) * 0.09;
-    const base = trunkAt(h);
-    const ctrl = new Vector3(Math.cos(th) * R * 0.45, h + 0.04, -Math.sin(th) * R * 0.45);
-    const tip = new Vector3(Math.cos(th) * R, h + 0.3, -Math.sin(th) * R);
-    const pts = new QuadraticBezierCurve3(base, ctrl, tip).getPoints(14);
-    const curve = new CatmullRomCurve3(pts);
+    const hb = -0.15 + i * 0.1; // where it leaves the trunk
+    const th = i * 2.39996; // golden angle: boughs spiral evenly round the trunk
+    const base = trunkAt(hb);
+    const dir = new Vector3(Math.cos(th) * 0.85, 0.5, -Math.sin(th) * 0.85);
+    const g: Grower = { c: newCloud(), color: tint, r, q, ends: [] };
+    grow(g, base, dir, 0.78 - i * 0.025, 0.034, 0, 4, 0.05);
+    const mats = layers(g.c, sharp, 0.02, root);
 
-    const c = newCloud();
-    shell(c, curve, 1300, 0.022, 0.006, tint, r);
-    twigs(c, curve, 10, 0.22, tint, r, 1);
-    foliage(c, tip, 0.17, 500, tint, r);
-    const mats = layers(c, sharp, 0.02, root);
+    // The main node floats in the middle of the bough's leaves; glowing points mark twig ends.
+    const centre = g.ends.reduce((s, p) => s.add(p), new Vector3()).multiplyScalar(1 / Math.max(1, g.ends.length));
+    const picks = g.ends.filter((_, k) => k % Math.max(1, Math.floor(g.ends.length / 7)) === 0).slice(0, 7);
+    const epGeo = new BufferGeometry().setFromPoints(picks);
+    const epMat = new PointsMaterial({ map: glow, color: col, size: 0.075, sizeAttenuation: true, transparent: true, depthWrite: false, opacity: 0.85, blending: AdditiveBlending });
+    root.add(new Points(epGeo, epMat));
 
     const node = new Sprite(new SpriteMaterial({ map: glow, color: col, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.9 }));
-    node.position.copy(tip);
+    node.position.copy(centre);
     root.add(node);
     const core = new Sprite(new SpriteMaterial({ map: glow, color: 0xffffff, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.95 }));
-    core.scale.setScalar(0.035);
-    core.position.copy(tip);
+    core.scale.setScalar(0.04);
+    core.position.copy(centre);
     root.add(core);
 
     const bird = makeBird(col, glow);
     root.add(bird.group);
-    const path = [...trunkPts.filter((p) => p.y < h), ...pts];
-    return { tip, col, mats, node, core, bird, path, perch: new Vector3(tip.x, tip.y + 0.09, tip.z) };
+    const path = [...trunkPts.filter((p) => p.y < hb), base, base.clone().lerp(centre, 0.5).add(new Vector3(0, 0.05, 0)), centre];
+    return { tip: centre, points: [centre, ...picks], col, mats, epMat, node, core, bird, path, perch: new Vector3(centre.x, centre.y + 0.14, centre.z) };
   });
 
-  // Crown
-  const crown = newCloud();
-  foliage(crown, new Vector3(0, 0.98, 0), 0.2, 700, new Color(0.45, 0.75, 1), r);
-  layers(crown, sharp, 0.02, root);
-
-  // Sap: telemetry flowing up the trunk and out to each stage.
-  const sapN = 30;
+  // Sap: telemetry flowing up the trunk and out along each bough.
+  const sapN = 36;
   const sap = Array.from({ length: sapN }, (_, k) => ({ b: k % N, u: Math.random(), speed: 0.003 + Math.random() * 0.004 }));
   const sapGeo = new BufferGeometry();
   sapGeo.setAttribute("position", new Float32BufferAttribute(new Float32Array(sapN * 3), 3));
@@ -255,9 +300,9 @@ function buildTree(sharp: CanvasTexture, glow: CanvasTexture) {
   root.add(new Points(sapGeo, new PointsMaterial({ map: glow, vertexColors: true, size: 0.05, transparent: true, depthWrite: false, blending: AdditiveBlending })));
 
   // Dust drifting around the tree.
-  const moteN = 70;
+  const moteN = 80;
   const motes = Array.from({ length: moteN }, (_, k) => ({
-    p: new Vector3((r() - 0.5) * 3, -1.1 + r() * 2.3, (r() - 0.5) * 3),
+    p: new Vector3((r() - 0.5) * 3.4, -1.1 + r() * 2.4, (r() - 0.5) * 3.4),
     ph: r() * Math.PI * 2,
     leaf: k % 3 === 0,
     c: rgb(treeStages[Math.floor(r() * N)].color),
@@ -269,21 +314,12 @@ function buildTree(sharp: CanvasTexture, glow: CanvasTexture) {
   moteGeo.setAttribute("color", new Float32BufferAttribute(moteCol, 3));
   root.add(new Points(moteGeo, new PointsMaterial({ map: sharp, vertexColors: true, size: 0.022, transparent: true, opacity: 0.6, depthWrite: false, blending: AdditiveBlending })));
 
-  // Trail behind the lead bird while it flies between stages.
-  const trailN = 18;
-  const trailGeo = new BufferGeometry();
-  trailGeo.setAttribute("position", new Float32BufferAttribute(new Float32Array(trailN * 3), 3));
-  trailGeo.setAttribute("color", new Float32BufferAttribute(new Float32Array(trailN * 3), 3));
-  const trail = new Points(trailGeo, new PointsMaterial({ map: glow, vertexColors: true, size: 0.05, transparent: true, depthWrite: false, blending: AdditiveBlending }));
-  trail.visible = false;
-  root.add(trail);
-
   const lead = makeBird(new Color(1, 1, 1), glow);
   lead.group.scale.setScalar(1.5);
   lead.group.visible = false;
   root.add(lead.group);
 
-  return { root, branches, sap, sapGeo, motes, moteGeo, trail, trailGeo, trailN, lead };
+  return { root, branches, sap, sapGeo, motes, moteGeo, lead };
 }
 
 function disposeScene(scene: Scene) {
@@ -298,27 +334,27 @@ function disposeScene(scene: Scene) {
   });
 }
 
-function queueSplat(a: Anim, i: number, big: boolean) {
-  const now = performance.now();
-  if (!big && (a.reduced || now - a.lastSplat[i] < 1500)) return;
-  a.lastSplat[i] = now;
-  a.queue.push({ i, big });
-}
+/** Small icons for the control legend. */
+const legend = [
+  { icon: "M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4", text: "Scroll to fly up the tree" },
+  { icon: "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4", text: "Drag or scroll sideways to turn it" },
+  { icon: "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0", text: "Hover a glowing point for that agent" },
+];
 
 /**
- * Full-bleed point-cloud tree on WebGL (three.js). The section pins to the screen; scrolling climbs
- * the tree one stage at a time. On a wide screen the stages are listed on the left and the active
- * stage's text sits on the right. Hovering a glowing node previews its stage. The pointer tilts
- * the view, and a 2D layer behind the tree paints a splash on each stage.
+ * The feature tree on WebGL (three.js). One coloured bough per feature, labelled in short. Vertical
+ * scroll flies up the tree one feature at a time; dragging, scrolling sideways, or the slider turns
+ * it. Hovering any glowing point or branch end opens that agent's flashcard beside it.
  */
 export function SdlcTree() {
   const outerRef = useRef<HTMLElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const glRef = useRef<HTMLCanvasElement>(null);
-  const fxRef = useRef<HTMLCanvasElement>(null);
-  const medalRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [scrollIdx, setScrollIdx] = useState(0);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [rot, setRot] = useState(0);
   const [noGl, setNoGl] = useState(false);
   const reduced = useReducedMotion();
   const active = hoverIdx ?? scrollIdx;
@@ -329,12 +365,14 @@ export function SdlcTree() {
     hover: -1,
     yaw: -Math.PI / 4,
     targetYaw: -Math.PI / 4,
+    uy: 0,
+    uyT: 0,
     px: 0,
     py: 0,
-    cam: 0,
+    zoom: 1,
+    look: new Vector3(),
     flight: null,
-    queue: [],
-    lastSplat: Array(N).fill(-1e9),
+    card: { x: 0, y: 0, init: false },
     reduced: false,
   });
 
@@ -346,19 +384,24 @@ export function SdlcTree() {
     anim.current.active = active;
   }, [active]);
 
-  // Scrolling to a new stage: turn to face it, fly the lead bird there, and splash its colour.
+  // Scrolling to a new feature: turn to face it and fly the lead bird there.
   useEffect(() => {
     const a = anim.current;
     if (a.scrollIdx !== scrollIdx && !a.reduced) a.flight = { from: a.scrollIdx, to: scrollIdx, start: performance.now() };
     a.scrollIdx = scrollIdx;
-    queueSplat(a, scrollIdx, true);
+    a.uyT = 0;
     let target = -Math.PI / 4 - scrollIdx * 2.39996;
     target += Math.PI * 2 * Math.round((a.yaw - target) / (Math.PI * 2));
     a.targetYaw = target;
-    if (a.reduced) a.yaw = target;
+    if (a.reduced) {
+      a.yaw = target;
+      a.uy = 0;
+    }
+    const id = setTimeout(() => setRot(0), 0);
+    return () => clearTimeout(id);
   }, [scrollIdx]);
 
-  // Scroll position -> stage.
+  // Vertical scroll position -> feature.
   useEffect(() => {
     const el = outerRef.current;
     if (!el) return;
@@ -385,10 +428,8 @@ export function SdlcTree() {
 
   useEffect(() => {
     const glCanvas = glRef.current;
-    const fxCanvas = fxRef.current;
     const wrap = wrapRef.current;
-    const fx = fxCanvas?.getContext("2d");
-    if (!glCanvas || !fxCanvas || !wrap || !fx) return;
+    if (!glCanvas || !wrap) return;
 
     let renderer: WebGLRenderer;
     try {
@@ -410,15 +451,34 @@ export function SdlcTree() {
     let w = 0;
     let h = 0;
     let d = 6;
-    let pxPerUnit = 300;
     let raf = 0;
     let visible = true;
     let pitch = 0.2;
-    let hits: { i: number; x: number; y: number }[] = [];
-    let splats: { i: number; s: Splat }[] = [];
-    const flightHist: Vector3[] = [];
+    let dark: boolean | null = null;
+    let hits: { i: number; x: number; y: number; pts: { x: number; y: number }[] }[] = [];
     const tmp = new Vector3();
+    const lookT = new Vector3();
     const qInv = new Quaternion();
+    const drag = { on: false, x: 0 };
+
+    // Light and dark themes: glowing additive points suit a dark ground; on white they become
+    // darker, normally-blended points. The fog fades distant parts into the page colour.
+    function applyTheme(isDark: boolean) {
+      dark = isDark;
+      scene.fog = new Fog(isDark ? 0x0b1220 : 0xf6f8fc, d - 1.4, d + (isDark ? 2.2 : 4.6));
+      scene.traverse((o) => {
+        if ((o as Points).isPoints) {
+          const m = (o as Points).material as PointsMaterial;
+          m.blending = isDark ? AdditiveBlending : NormalBlending;
+          m.color.setRGB(isDark ? 1 : 0.34, isDark ? 1 : 0.4, isDark ? 1 : 0.56);
+          m.needsUpdate = true;
+        } else if ((o as Sprite).isSprite) {
+          const m = (o as Sprite).material;
+          m.blending = isDark ? AdditiveBlending : NormalBlending;
+          m.needsUpdate = true;
+        }
+      });
+    }
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -427,24 +487,20 @@ export function SdlcTree() {
       if (!w || !h) return;
       renderer.setPixelRatio(dpr);
       renderer.setSize(w, h, false);
-      fxCanvas!.width = w * dpr;
-      fxCanvas!.height = h * dpr;
-      fx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // Fit the whole tree: on a wide screen it sits left of centre, leaving room for the text.
+      // Fit the whole tree, with room above for the heading and below for the controls.
       const wide = w >= WIDE_W;
-      const top = wide ? 72 : 96;
-      const bottom = wide ? 64 : h * 0.44;
+      const top = wide ? 80 : 96;
+      const bottom = wide ? 112 : h * 0.44;
       const band = Math.max(160, h - top - bottom);
       const tanH = Math.tan((FOV * Math.PI) / 360);
-      const dH = 2.75 / ((band / h) * 2 * tanH);
-      const dW = (wide ? 3.7 : 2.1) / ((w / h) * 2 * tanH);
+      const dH = 3.3 / ((band / h) * 2 * tanH);
+      const dW = (wide ? 5.0 : 4.2) / ((w / h) * 2 * tanH);
       d = Math.max(dH, dW);
-      pxPerUnit = h / (2 * tanH * d);
       cam.aspect = w / h;
-      cam.setViewOffset(w, h, wide ? w * (0.5 - TREE_X) : 0, -(top + band / 2 - h / 2), w, h);
+      cam.setViewOffset(w, h, 0, -(top + band / 2 - h / 2), w, h);
       cam.updateProjectionMatrix();
-      scene.fog = new Fog(0x05070a, d - 0.9, d + 2.8);
+      if (dark !== null) applyTheme(dark);
     }
 
     // Local (tree) position -> screen pixels.
@@ -458,33 +514,43 @@ export function SdlcTree() {
     function frame(now: number) {
       raf = requestAnimationFrame(frame);
       if (!visible || !w) return;
+      const isDark = document.documentElement.dataset.theme !== "light";
+      if (isDark !== dark) applyTheme(isDark);
       const t = a.reduced ? 0 : now / 1000;
       const px = a.reduced ? 0 : a.px;
       const py = a.reduced ? 0 : a.py;
 
-      // Camera: ease toward the scroll stage, drift a little, and tilt with the pointer.
+      // Orbit: ease toward the scroll feature, add the visitor's sideways turn and the pointer tilt.
       a.yaw += (a.targetYaw - a.yaw) * 0.05;
-      tree.root.rotation.y = a.yaw + px * 0.5;
-      pitch += (0.17 + py * 0.22 - pitch) * 0.08;
-      const camTarget = tree.branches[a.scrollIdx].tip.y * 0.1;
-      a.cam += (camTarget - a.cam) * (a.reduced ? 1 : 0.045);
-      cam.position.set(0, a.cam + Math.sin(pitch) * d, Math.cos(pitch) * d);
-      cam.lookAt(0, a.cam, 0);
-      cam.updateMatrixWorld(true);
+      a.uy += (a.uyT - a.uy) * (a.reduced ? 1 : 0.14);
+      tree.root.rotation.y = a.yaw + a.uy + px * 0.3;
+      pitch += (0.17 + py * 0.2 - pitch) * 0.08;
       tree.root.updateMatrixWorld(true);
 
-      // The active branch brightens and swells; passed branches stay lit.
+      // Fly-through: the camera drifts toward the current feature and comes in a little closer.
+      const nodeW = tree.root.localToWorld(tmp.copy(tree.branches[a.scrollIdx].tip));
+      lookT.set(nodeW.x * 0.25, nodeW.y * 0.25, nodeW.z * 0.25);
+      a.look.lerp(lookT, a.reduced ? 1 : 0.05);
+      a.zoom += ((a.reduced ? 1 : 0.94) - a.zoom) * 0.04;
+      const dist = d * a.zoom;
+      cam.position.set(a.look.x, a.look.y + Math.sin(pitch) * dist, a.look.z + Math.cos(pitch) * dist);
+      cam.lookAt(a.look);
+      cam.updateMatrixWorld(true);
+
+      // The active bough brightens and swells; passed boughs stay lit.
       tree.branches.forEach((b, i) => {
         const on = i === a.active;
         const seen = i <= a.scrollIdx;
-        const op = on ? 0.95 : seen ? 0.7 : 0.42;
+        const op = Math.min(1, (on ? 0.95 : seen ? 0.7 : 0.42) * (isDark ? 1 : 1.7)); // points need more weight on a light page
         const sz = on ? 1.25 : 1;
         b.mats.fine.opacity += (op - b.mats.fine.opacity) * 0.1;
         b.mats.bright.opacity += (op - b.mats.bright.opacity) * 0.1;
         b.mats.fine.size += (0.02 * sz - b.mats.fine.size) * 0.1;
         b.mats.bright.size += (0.04 * sz - b.mats.bright.size) * 0.1;
         const pulse = 1 + 0.18 * Math.sin(t * 2.4 + i);
-        b.node.scale.setScalar((on ? 0.24 : 0.1) * pulse);
+        b.node.scale.setScalar((on ? 0.3 : 0.12) * pulse);
+        b.epMat.size += ((on ? 0.11 : 0.075) * pulse - b.epMat.size) * 0.2;
+        b.epMat.opacity += ((on ? 1 : 0.8) - b.epMat.opacity) * 0.15;
         const nm = b.node.material as SpriteMaterial;
         nm.opacity += ((on ? 1 : seen ? 0.85 : 0.6) - nm.opacity) * 0.1;
       });
@@ -513,14 +579,14 @@ export function SdlcTree() {
         if (!a.reduced) {
           m.p.y += m.leaf ? -0.0009 : 0.0007;
           m.p.x += Math.sin(t * 0.6 + m.ph) * 0.0008;
-          if (m.p.y < -1.1) m.p.y = 1.15;
-          if (m.p.y > 1.2) m.p.y = -1.05;
+          if (m.p.y < -1.1) m.p.y = 1.2;
+          if (m.p.y > 1.3) m.p.y = -1.05;
         }
         mp.setXYZ(k, m.p.x, m.p.y, m.p.z);
       });
       mp.needsUpdate = true;
 
-      // Birds (billboarded so the wings always face the viewer) perched above each node.
+      // Birds (billboarded so the wings always face the viewer) perched above each main node.
       qInv.copy(tree.root.quaternion).invert().multiply(cam.quaternion);
       const flight = a.flight && now - a.flight.start < FLIGHT_MS ? a.flight : null;
       if (!flight) a.flight = null;
@@ -535,26 +601,18 @@ export function SdlcTree() {
         b.bird.wingL.rotation.z = flap;
         b.bird.wingR.rotation.z = -flap;
         (b.bird.halo.material as SpriteMaterial).opacity = on ? 0.7 : 0.25;
-        const s2 = toScreen(b.tip);
-        hits.push({ i, x: s2.x, y: s2.y });
+        const pts = b.points.map((p) => toScreen(p));
+        hits.push({ i, x: pts[0].x, y: pts[0].y, pts });
       });
 
-      // The medallion sits on the trunk, like the reference's centre circle.
-      const medal = medalRef.current;
-      if (medal) {
-        const m = toScreen(new Vector3(0, -0.05, 0));
-        const half = medal.offsetWidth / 2;
-        medal.style.transform = `translate(${m.x - half}px, ${m.y - half}px)`;
-      }
-
-      // Lead agent flying the flow from the previous stage to the next.
+      // Lead agent flying from the previous feature to the next.
       if (flight) {
         const p = Math.min(1, (now - flight.start) / FLIGHT_MS);
         const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
         const A = tree.branches[flight.from].perch;
         const B = tree.branches[flight.to].perch;
         const pos = new Vector3().lerpVectors(A, B, e);
-        pos.y += Math.sin(Math.PI * e) * 0.35;
+        pos.y += Math.sin(Math.PI * e) * 0.4;
         tree.lead.group.visible = true;
         tree.lead.group.position.copy(pos);
         tree.lead.group.quaternion.copy(qInv);
@@ -564,47 +622,67 @@ export function SdlcTree() {
         const col = tree.branches[flight.to].col;
         tree.lead.mat.color.copy(col);
         (tree.lead.halo.material as SpriteMaterial).color.copy(col);
-        flightHist.push(pos.clone());
-        if (flightHist.length > tree.trailN) flightHist.shift();
-        const tp = tree.trailGeo.getAttribute("position");
-        const tc = tree.trailGeo.getAttribute("color");
-        for (let k = 0; k < tree.trailN; k++) {
-          const hp = flightHist[Math.min(k, flightHist.length - 1)] ?? pos;
-          const fade = (k / tree.trailN) * 0.8;
-          tp.setXYZ(k, hp.x, hp.y, hp.z);
-          tc.setXYZ(k, col.r * fade, col.g * fade, col.b * fade);
-        }
-        tp.needsUpdate = true;
-        tc.needsUpdate = true;
-        tree.trail.visible = true;
       } else {
         tree.lead.group.visible = false;
-        tree.trail.visible = false;
-        flightHist.length = 0;
       }
 
       renderer.render(scene, cam);
 
-      // 2D layer behind the tree: paint splashes.
-      fx!.clearRect(0, 0, w, h);
-      fx!.globalCompositeOperation = "lighter";
-      for (const q of a.queue.splice(0)) {
-        splats.push({ i: q.i, s: makeSplat(q.big, now) });
-        const bigOnes = splats.filter((s) => s.s.big);
-        if (bigOnes.length > 9) splats = splats.filter((s) => s !== bigOnes[0]);
+      // Short labels on each branch, and the agent's flashcard beside the active one.
+      const wide = w >= WIDE_W;
+      const treeCx = toScreen(new Vector3(0, 0, 0)).x;
+      hits.forEach((hit) => {
+        const el = labelRefs.current[hit.i];
+        if (!el) return;
+        const right = hit.x >= treeCx;
+        el.style.transform = `translate(${right ? hit.x + 18 : hit.x - 18}px, ${hit.y - 12}px) translateX(${right ? "0" : "-100%"})`;
+        el.style.opacity = hit.i === a.active && wide ? "0" : "1";
+        el.style.textAlign = right ? "left" : "right";
+      });
+      const cardEl = cardRef.current;
+      const act = hits.find((x) => x.i === a.active);
+      if (cardEl && act) {
+        if (wide) {
+          const cw = cardEl.offsetWidth;
+          const ch = cardEl.offsetHeight;
+          const right = act.x >= treeCx - 30;
+          const tx = clamp(right ? act.x + 56 : act.x - 56 - cw, 12, w - cw - 12);
+          const ty = clamp(act.y - ch * 0.3, 70, Math.max(70, h - ch - 110));
+          const c = a.card;
+          if (!c.init) Object.assign(c, { x: tx, y: ty, init: true });
+          const ease = a.reduced ? 1 : 0.16;
+          c.x += (tx - c.x) * ease;
+          c.y += (ty - c.y) * ease;
+          cardEl.style.transform = `translate(${c.x}px, ${c.y}px)`;
+        } else {
+          cardEl.style.transform = "";
+        }
       }
-      splats = splats.filter((s) => s.s.big || a.reduced || now - s.s.born < 2600);
-      for (const sp2 of splats) {
-        const age = a.reduced ? 0.7 : (now - sp2.s.born) / 1000;
-        const at = toScreen(tree.branches[sp2.i].tip);
-        drawSplat(fx!, sp2.s, at.x, at.y, (sp2.s.big ? 0.3 : 0.16) * pxPerUnit, age, treeStages[sp2.i].color, sp2.s.big ? 10 : 2.6, sp2.s.big ? 0.16 : 0, 0.8);
-      }
-      fx!.globalCompositeOperation = "source-over";
     }
 
-    // Hover only for a real mouse; on touch, scrolling drives the tree. A wider radius once
-    // hovering keeps the preview from flickering at the edge of a node.
+    const turn = (delta: number) => {
+      a.uyT += delta;
+      setRot(Math.round(wrapDeg((a.uyT * 180) / Math.PI)));
+    };
+    const down = (e: PointerEvent) => {
+      drag.on = true;
+      drag.x = e.clientX;
+      glCanvas.setPointerCapture(e.pointerId);
+    };
+    const up = () => {
+      drag.on = false;
+      glCanvas.style.cursor = a.hover >= 0 ? "pointer" : "grab";
+    };
+    // Hover only for a real mouse; on touch, scrolling drives the tree. Any glowing point of a
+    // feature (its main node or any twig end) selects it. A wider radius once hovering keeps the
+    // card from flickering.
     const move = (e: PointerEvent) => {
+      if (drag.on) {
+        turn((e.clientX - drag.x) * 0.009);
+        drag.x = e.clientX;
+        glCanvas.style.cursor = "grabbing";
+        return;
+      }
       if (e.pointerType !== "mouse") return;
       const r = glCanvas.getBoundingClientRect();
       const x = e.clientX - r.left;
@@ -612,20 +690,22 @@ export function SdlcTree() {
       a.px = x / r.width - 0.5;
       a.py = y / r.height - 0.5;
       let best = -1;
-      let bd = (a.hover >= 0 ? 44 : 32) ** 2;
+      let bd = Infinity;
       for (const hit of hits) {
-        const dd = (hit.x - x) ** 2 + (hit.y - y) ** 2;
-        if (dd < bd) {
-          bd = dd;
-          best = hit.i;
+        const reach = (a.hover === hit.i ? 40 : 28) ** 2;
+        for (const p of hit.pts) {
+          const dd = (p.x - x) ** 2 + (p.y - y) ** 2;
+          if (dd < reach && dd < bd) {
+            bd = dd;
+            best = hit.i;
+          }
         }
       }
       if (best !== a.hover) {
         a.hover = best;
         setHoverIdx(best >= 0 ? best : null);
-        if (best >= 0) queueSplat(a, best, false);
       }
-      glCanvas.style.cursor = best >= 0 ? "pointer" : "default";
+      glCanvas.style.cursor = best >= 0 ? "pointer" : "grab";
     };
     const leave = () => {
       a.px = a.py = 0;
@@ -634,13 +714,24 @@ export function SdlcTree() {
         setHoverIdx(null);
       }
     };
+    // Sideways wheel or trackpad scrolling turns the tree; vertical scrolling still moves the page.
+    const wheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2 && Math.abs(e.deltaX) > 1) {
+        e.preventDefault();
+        turn(e.deltaX * 0.004);
+      }
+    };
 
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
     const io = new IntersectionObserver(([en]) => (visible = en.isIntersecting));
     io.observe(wrap);
+    glCanvas.addEventListener("pointerdown", down);
+    glCanvas.addEventListener("pointerup", up);
+    glCanvas.addEventListener("pointercancel", up);
     glCanvas.addEventListener("pointermove", move);
     glCanvas.addEventListener("pointerleave", leave);
+    wrap.addEventListener("wheel", wheel, { passive: false });
     resize();
     raf = requestAnimationFrame(frame);
 
@@ -648,8 +739,12 @@ export function SdlcTree() {
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
+      glCanvas.removeEventListener("pointerdown", down);
+      glCanvas.removeEventListener("pointerup", up);
+      glCanvas.removeEventListener("pointercancel", up);
       glCanvas.removeEventListener("pointermove", move);
       glCanvas.removeEventListener("pointerleave", leave);
+      wrap.removeEventListener("wheel", wheel);
       disposeScene(scene);
       sharp.dispose();
       glow.dispose();
@@ -664,45 +759,81 @@ export function SdlcTree() {
     window.scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
   }
 
-  function preview(i: number | null) {
-    setHoverIdx(i);
-    if (i !== null) queueSplat(anim.current, i, false);
-  }
-
   const s = treeStages[active];
   const col = `rgb(${s.color})`;
+
+  const detail = (
+    <div key={active} className="fade-in">
+      <p className="font-mono text-xs uppercase tracking-wider text-muted">
+        {pad(active + 1)} / {pad(N)} &middot; <span style={{ color: col }}>{s.agent}</span>
+      </p>
+      <h3 className="font-display mt-1.5 text-2xl font-medium leading-tight">{s.title}</h3>
+      <p className="mt-2 text-sm text-muted">{s.does}</p>
+      <ul className="mt-3 hidden space-y-1 text-sm min-[1100px]:block">
+        {s.details.map((dd) => (
+          <li key={dd} className="flex gap-2">
+            <span aria-hidden style={{ color: col }}>&#10003;</span>
+            {dd}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-sm">
+        <span className="font-mono text-xs uppercase text-warn">You approve </span>
+        {s.gate}
+      </p>
+      <ul className="mt-3 flex flex-wrap gap-1.5">
+        {s.tech.map((tg) => (
+          <li key={tg} className="rounded-md border px-2 py-0.5 font-mono text-[11px]" style={{ borderColor: `rgba(${s.color},0.5)`, color: col }}>
+            {tg}
+          </li>
+        ))}
+        {s.outputs.map((o) => (
+          <li key={o} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted">
+            {o}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
   return (
     <section
       ref={outerRef}
-      aria-label="Plan to production in nine stages"
-      className="relative"
+      aria-label="The nine features, one branch each"
+      className="relative overscroll-x-contain"
       style={{ height: `${N * 30 + 100}vh` }}
     >
       <div className="sticky top-20 h-[calc(100svh-5rem)] w-full overflow-hidden">
         <div ref={wrapRef} className="absolute inset-0">
-          <canvas ref={fxRef} aria-hidden className="absolute inset-0 h-full w-full" />
           <canvas
             ref={glRef}
             role="img"
-            aria-label={`3D tree of nine SDLC stages. Current stage ${active + 1}: ${s.title}.`}
-            className="absolute inset-0 h-full w-full"
+            aria-label={`Tree of nine features, one per branch. Current: ${s.title}. Drag sideways to turn it.`}
+            className="absolute inset-0 h-full w-full cursor-grab"
+            style={{ touchAction: "pan-y" }}
           />
-          <div
-            ref={medalRef}
-            aria-hidden
-            className="pointer-events-none absolute left-0 top-0 flex h-16 w-16 flex-col items-center justify-center rounded-full border bg-black/80 text-center backdrop-blur-sm min-[1100px]:h-32 min-[1100px]:w-32"
-            style={{ transform: "translate(-300px,-300px)", borderColor: `rgba(${s.color},0.6)`, boxShadow: `0 0 36px rgba(${s.color},0.25)` }}
-          >
-            <span key={active} className="fade-in font-mono text-xl font-light min-[1100px]:text-3xl" style={{ color: col }}>{pad(active + 1)}</span>
-            <span className="mt-0.5 hidden px-2 font-mono text-[10px] leading-tight text-muted min-[1100px]:block">{s.agent}</span>
-          </div>
+          {/* A short label on every branch. */}
+          {treeStages.map((st, i) => (
+            <div
+              key={st.short}
+              ref={(el) => {
+                labelRefs.current[i] = el;
+              }}
+              aria-hidden
+              className="pointer-events-none absolute left-0 top-0 max-w-[10.5rem] rounded-md bg-background/55 px-1.5 py-0.5 leading-tight backdrop-blur-[2px] transition-opacity duration-200"
+              style={{ transform: "translate(-300px,-300px)" }}
+            >
+              <p className="font-mono text-[10px] font-medium uppercase tracking-wide sm:text-xs" style={{ color: `rgb(${st.color})` }}>
+                {pad(i + 1)} {st.short}
+              </p>
+              <p className="mt-0.5 hidden text-xs text-muted min-[1100px]:block">{st.tagline}</p>
+            </div>
+          ))}
         </div>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_40%_52%,transparent_42%,var(--background)_100%)]" aria-hidden />
 
         <div className="absolute left-6 top-3 z-10 min-[1100px]:left-10">
-          <p className="font-mono text-xs text-accent sm:text-sm">Plan to production</p>
-          <h2 className="hidden text-xl font-medium tracking-tight sm:block sm:text-2xl">Nine stages. Nine agents. You approve.</h2>
+          <p className="font-mono text-xs uppercase tracking-wider text-accent sm:text-sm">Plan to production</p>
+          <h2 className="hidden text-xl font-medium tracking-tight sm:block sm:text-2xl">Nine features. Nine agents. You approve.</h2>
         </div>
         <a
           href="#products"
@@ -711,80 +842,22 @@ export function SdlcTree() {
           Skip journey &darr;
         </a>
 
-        {/* Wide screens: the stage list. The active one is bright and the rest fade. */}
-        <ul className="absolute left-6 top-1/2 z-10 hidden -translate-y-1/2 min-[1100px]:left-10 min-[1100px]:block" aria-label="Stages" onMouseLeave={() => setHoverIdx(null)}>
-          {treeStages.map((st, i) => {
-            const dist = Math.abs(i - active);
-            return (
-              <li key={st.short}>
-                <button
-                  onMouseEnter={() => preview(i)}
-                  onFocus={() => preview(i)}
-                  onBlur={() => setHoverIdx(null)}
-                  onClick={() => go(i)}
-                  aria-current={i === active ? "step" : undefined}
-                  className="group relative flex items-baseline gap-3 py-[7px] pl-4 text-left transition-all duration-300"
-                  style={{ opacity: Math.max(0.28, 1 - dist * 0.15) }}
-                >
-                  <span
-                    aria-hidden
-                    className="absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-full transition-all duration-300"
-                    style={{ height: i === active ? 22 : 0, background: `rgb(${st.color})` }}
-                  />
-                  <span className="font-mono text-xs text-muted">{pad(i + 1)}</span>
-                  <span className={`transition-all duration-300 ${i === active ? "text-xl font-medium text-foreground" : "text-base text-muted group-hover:text-foreground"}`}>{st.short}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* Wide screens: large, light text on the right, with no box around it. */}
-        <aside aria-live="polite" className="absolute right-[5%] top-1/2 z-10 hidden w-[24rem] -translate-y-1/2 min-[1100px]:block min-[1500px]:right-[7%]">
-          <div key={active} className="fade-in">
-            <p className="font-mono text-xs text-muted">
-              Stage {pad(active + 1)} of {pad(N)} &middot; <span style={{ color: col }}>{s.agent}</span>
-            </p>
-            <h3 className="mt-2 text-5xl font-light leading-[1.05] tracking-tight">{s.title}</h3>
-            <p className="mt-4 text-base text-muted">{s.does}</p>
-            <ul className="mt-4 space-y-1.5 text-sm text-muted">
-              {s.details.map((dd) => (
-                <li key={dd} className="flex gap-2">
-                  <span aria-hidden style={{ color: col }}>&#10003;</span>
-                  {dd}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-5 text-sm">
-              <span className="font-mono text-xs text-warn">YOU APPROVE </span>
-              {s.gate}
-            </p>
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {s.outputs.map((o) => (
-                <li key={o} className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: `rgba(${s.color},0.5)` }}>
-                  {o}
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* Wide screens: the agent's flashcard, floating beside the point you hover. */}
+        <aside
+          ref={cardRef}
+          aria-live="polite"
+          className="absolute left-0 top-0 z-20 hidden w-[22rem] rounded-2xl border bg-surface/95 p-5 shadow-2xl backdrop-blur min-[1100px]:block"
+          style={{ borderColor: `rgba(${s.color},0.6)`, boxShadow: `0 20px 60px -20px rgba(${s.color},0.35)` }}
+        >
+          {detail}
         </aside>
 
-        {/* Smaller screens: the same text in a card at the bottom, and the stages as a scrolling strip. */}
+        {/* Smaller screens: the same details in a card at the bottom. */}
         <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-3 min-[1100px]:hidden">
-          <aside aria-live="polite" className="max-h-[38svh] overflow-y-auto rounded-2xl border bg-surface/90 p-4 backdrop-blur" style={{ borderColor: `rgba(${s.color},0.5)` }}>
-            <div key={active} className="fade-in">
-              <p className="font-mono text-xs text-muted">
-                {pad(active + 1)} / {pad(N)} &middot; <span style={{ color: col }}>{s.agent}</span>
-              </p>
-              <h3 className="mt-1 text-xl font-medium">{s.title}</h3>
-              <p className="mt-1 text-sm text-muted">{s.does}</p>
-              <p className="mt-2 text-sm">
-                <span className="font-mono text-xs text-warn">YOU APPROVE </span>
-                {s.gate}
-              </p>
-            </div>
+          <aside aria-live="polite" className="max-h-[38svh] overflow-y-auto rounded-2xl border bg-surface/95 p-4 backdrop-blur" style={{ borderColor: `rgba(${s.color},0.5)` }}>
+            {detail}
           </aside>
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Stages">
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Features">
             {treeStages.map((st, i) => (
               <button
                 key={st.short}
@@ -799,9 +872,58 @@ export function SdlcTree() {
           </div>
         </div>
 
-        <p className="pointer-events-none absolute inset-x-0 bottom-5 z-10 hidden px-6 text-center text-sm text-muted min-[1100px]:block">
-          {noGl ? "Your browser cannot draw the 3D tree; the stages are listed on the left." : "Start scrolling, or hover a glowing point, to meet each agent"}
-        </p>
+        {/* Wide screens: the nine features as a strip, how to explore, and a control to turn the tree. */}
+        <div className="absolute inset-x-0 bottom-3 z-10 hidden flex-col items-center gap-2.5 px-6 min-[1100px]:flex">
+          <div className="flex flex-wrap justify-center gap-1.5" role="group" aria-label="Features" onMouseLeave={() => setHoverIdx(null)}>
+            {treeStages.map((st, i) => (
+              <button
+                key={st.short}
+                aria-current={i === active ? "step" : undefined}
+                onMouseEnter={() => setHoverIdx(i)}
+                onFocus={() => setHoverIdx(i)}
+                onBlur={() => setHoverIdx(null)}
+                onClick={() => go(i)}
+                className="whitespace-nowrap rounded-full border bg-background/70 px-3 py-1 text-xs backdrop-blur transition-colors"
+                style={i === active ? { borderColor: `rgb(${st.color})`, background: `rgba(${st.color},0.12)`, color: `rgb(${st.color})` } : { borderColor: "var(--border)", color: "var(--muted)" }}
+              >
+                <span className="font-mono opacity-70">{pad(i + 1)}</span> {st.short}
+              </button>
+            ))}
+          </div>
+          {noGl ? (
+            <p className="text-sm text-muted">Your browser cannot draw the 3D tree; the features are listed above.</p>
+          ) : (
+            <ul className="flex items-center gap-6 text-sm text-muted">
+              {legend.map((l) => (
+                <li key={l.text} className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-accent" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d={l.icon} />
+                  </svg>
+                  {l.text}
+                </li>
+              ))}
+              <li>
+                <label className="flex items-center gap-2 font-mono text-xs">
+                  <span>Turn</span>
+                  <input
+                    type="range"
+                    min={-180}
+                    max={180}
+                    step={1}
+                    value={rot}
+                    onChange={(e) => {
+                      const deg = Number(e.target.value);
+                      anim.current.uyT = (deg * Math.PI) / 180;
+                      setRot(deg);
+                    }}
+                    aria-label="Turn the tree"
+                    className="w-36 accent-[var(--accent)]"
+                  />
+                </label>
+              </li>
+            </ul>
+          )}
+        </div>
       </div>
     </section>
   );

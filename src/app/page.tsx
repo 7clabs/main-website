@@ -1,7 +1,7 @@
 import { AutonomyDial } from "@/components/AutonomyDial";
 import { OpenChatButton } from "@/components/ChatWidget";
 import { FlowRibbon } from "@/components/FlowRibbon";
-import { ProductCards } from "@/components/ProductCards";
+import { ProductDemo } from "@/components/ProductDemo";
 import { Reveal } from "@/components/Reveal";
 import { SdlcTreeLazy } from "@/components/SdlcTreeLazy";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -46,7 +46,7 @@ export default function Home() {
               <div>
                 <p className="w-fit rounded-full border border-border px-3 py-1 font-mono text-xs text-muted">
                   <span className="status-live text-ok" aria-hidden>&#9679; </span>
-                  SDLC &middot; ADLC &middot; AI monitoring
+                  Build secure &middot; Run reliable &middot; Scale intelligent
                 </p>
                 <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-6xl">
                   Your software lifecycle, run by <span className="gradient-text inline-block">AI agents you control.</span>
@@ -71,8 +71,8 @@ export default function Home() {
 
         <section id="products" className="scroll-mt-20 py-20">
           <Wrap>
-            <Title eyebrow="Products">Four products. One platform.</Title>
-            <div className="mt-10"><ProductCards /></div>
+            <Title eyebrow="Product demo">Four products. One platform. See the agents work.</Title>
+            <div className="mt-10"><ProductDemo /></div>
           </Wrap>
         </section>
 

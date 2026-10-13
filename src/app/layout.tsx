@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Hanken_Grotesk, JetBrains_Mono, Newsreader } from "next/font/google";
 import { AiOpsBackground } from "@/components/AiOpsBackground";
 import { ChatWidget } from "@/components/ChatWidget";
 import "./globals.css";
@@ -8,6 +8,13 @@ import "./globals.css";
 const geistSans = Hanken_Grotesk({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+// Editorial serif, used for headlines on the light theme.
+const serif = Newsreader({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
 });
 
 // Terminal-style mono for labels, logs and status text.
@@ -35,8 +42,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${mono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Sets the theme before first paint so there is no flash: the saved choice, else the system setting. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}",
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <AiOpsBackground />
         {children}

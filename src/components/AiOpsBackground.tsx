@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { drawSplat, makeSplat, type Splat } from "@/lib/splat";
+import { drawHexCluster, hexPath, makeHexCluster, TECH, type HexCluster } from "@/lib/hex";
 
-type Node = { x: number; y: number; vx: number; vy: number; r: number; state: 0 | 1 | 2; timer: number };
+type Node = { x: number; y: number; vx: number; vy: number; r: number; state: 0 | 1 | 2; timer: number; tag: string };
 type Packet = { a: number; b: number; t: number; speed: number; violet: boolean };
 
 const LINK = 150;
-const CYAN = "56,189,248";
-const VIOLET = "129,140,248";
-const RED = "255,92,92";
-const GREEN = "62,207,110";
-const PAINT = ["56,189,248", "129,140,248", "167,139,250", "244,114,182", "62,207,110", "245,165,36"];
+// Colours follow the theme. Dark: bright on slate. Light: deeper tones that read on white.
+const PALETTE = {
+  dark: { net: "91,140,255", alt: "139,125,255", bad: "248,113,113", good: "52,211,153", clusters: ["91,140,255", "34,211,238", "139,125,255", "52,211,153"] },
+  light: { net: "31,79,216", alt: "109,40,217", bad: "198,40,40", good: "21,128,61", clusters: ["31,79,216", "8,145,178", "109,40,217", "21,128,61"] },
+};
 
 /**
  * Full-page "AIOps" view: services drift as a network, telemetry packets travel the links,
@@ -34,15 +34,21 @@ export function AiOpsBackground() {
     let nextIncident = 120;
     let tick = 0;
     let raf = 0;
+    let CYAN = PALETTE.dark.net;
+    let VIOLET = PALETTE.dark.alt;
+    let RED = PALETTE.dark.bad;
+    let GREEN = PALETTE.dark.good;
+    let clusterCols = PALETTE.dark.clusters;
+    let dark = true;
 
-    // Paint splashes across the page: one bursts at the page edge each time you scroll to a new
-    // screen, and a small one wherever you click on empty space.
-    let splats: { s: Splat; x: number; y: number; r: number; c: string }[] = [];
+    // Hexagonal tech clusters (K8s, IaC, SBOM, OPA, SLO...) appear at the page edge each time you
+    // scroll to a new screen, and a smaller one wherever you click on empty space.
+    let clusters: { c: HexCluster; x: number; y: number; size: number; col: number }[] = [];
     let band = -1;
-    const spawn = (x: number, y: number, r: number, big: boolean) => {
+    const spawn = (x: number, y: number, size: number, big: boolean) => {
       if (reduced) return;
-      splats.push({ s: makeSplat(big, performance.now()), x, y, r, c: PAINT[Math.floor(Math.random() * PAINT.length)] });
-      if (splats.length > 8) splats.shift();
+      clusters.push({ c: makeHexCluster(big, performance.now()), x, y, size, col: Math.floor(Math.random() * 4) });
+      if (clusters.length > 2) clusters.shift();
     };
     const onScroll = () => {
       const b = Math.floor(window.scrollY / (window.innerHeight * 0.8));
@@ -50,12 +56,19 @@ export function AiOpsBackground() {
       const first = band === -1;
       band = b;
       if (first) return;
+      // Inside the tree section the tree draws its own hexagons, so keep the page background quiet there.
+      const j = document.getElementById("journey")?.getBoundingClientRect();
+      if (j && j.top < h * 0.5 && j.bottom > h * 0.5) return;
+      const size = w < 700 ? 20 : 30;
+      const half = size * 2.2;
       const left = Math.random() < 0.5;
-      spawn(w * (left ? 0.03 + Math.random() * 0.1 : 0.87 + Math.random() * 0.1), h * (0.2 + Math.random() * 0.6), Math.min(w, 900) * (0.09 + Math.random() * 0.06), true);
+      spawn(left ? 16 + half : w - 16 - half, h * (0.2 + Math.random() * 0.6), size, true);
     };
     const onDown = (e: PointerEvent) => {
       if ((e.target as Element | null)?.closest("a,button,input,textarea,select,summary,label,canvas,[role=dialog]")) return;
-      spawn(e.clientX, e.clientY, 80, false);
+      const size = w < 700 ? 16 : 22;
+      const half = size * 1.8;
+      spawn(Math.min(w - half, Math.max(half, e.clientX)), e.clientY, size, false);
     };
 
     function resize() {
@@ -80,6 +93,7 @@ export function AiOpsBackground() {
         r: 1.4 + Math.random() * 1.8,
         state: 0,
         timer: 0,
+        tag: Math.random() < 0.2 ? TECH[Math.floor(Math.random() * TECH.length)] : "",
       }));
       packets = [];
       if (reduced) frame();
@@ -87,18 +101,23 @@ export function AiOpsBackground() {
 
     function frame() {
       tick++;
+      dark = document.documentElement.dataset.theme !== "light";
+      const pal = dark ? PALETTE.dark : PALETTE.light;
+      CYAN = pal.net;
+      VIOLET = pal.alt;
+      RED = pal.bad;
+      GREEN = pal.good;
+      clusterCols = pal.clusters;
       ctx!.clearRect(0, 0, w, h);
       const fade = Math.max(0.3, 1 - window.scrollY / 1100);
       ctx!.globalAlpha = fade;
 
-      // Splashes sit behind the network.
-      if (splats.length) {
+      // Hexagon clusters sit behind the network.
+      if (clusters.length) {
         const now = performance.now();
-        splats = splats.filter((p) => now - p.s.born < (p.s.big ? 7000 : 2400));
+        clusters = clusters.filter((q) => now - q.c.born < (q.c.big ? 9000 : 4000));
         ctx!.globalAlpha = 1;
-        ctx!.globalCompositeOperation = "lighter";
-        for (const p of splats) drawSplat(ctx!, p.s, p.x, p.y, p.r, (now - p.s.born) / 1000, p.c, p.s.big ? 7 : 2.4, 0, 0.5);
-        ctx!.globalCompositeOperation = "source-over";
+        for (const q of clusters) drawHexCluster(ctx!, q.c, q.x, q.y, q.size, (now - q.c.born) / 1000, clusterCols[q.col], q.c.big ? 9 : 4, dark, 0, dark ? 0.65 : 0.45);
         ctx!.globalAlpha = fade;
       }
 
@@ -209,10 +228,14 @@ export function AiOpsBackground() {
         ctx!.fillStyle = `rgba(${col},${n.state ? 1 : 0.75})`;
         ctx!.shadowColor = `rgb(${col})`;
         ctx!.shadowBlur = n.state ? 16 : 6;
-        ctx!.beginPath();
-        ctx!.arc(n.x, n.y, n.state ? n.r + 1.6 : n.r, 0, Math.PI * 2);
+        hexPath(ctx!, n.x, n.y, (n.state ? n.r + 1.6 : n.r) * 2.3);
         ctx!.fill();
         ctx!.shadowBlur = 0;
+        if (n.tag) {
+          ctx!.font = "10px ui-monospace, Menlo, Consolas, monospace";
+          ctx!.fillStyle = `rgba(${col},0.7)`;
+          ctx!.fillText(n.tag, n.x + n.r * 2.3 + 5, n.y + 3.5);
+        }
       }
 
       ctx!.globalAlpha = 1;

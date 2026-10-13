@@ -1,17 +1,42 @@
 @import "tailwindcss";
 
+/*
+ * Palette taken from the 7C Labs logo: royal blue into cyan, a violet accent, charcoal slate.
+ * Light is the default for :root; the dark theme is applied with data-theme="dark" on <html>.
+ * The --rgb-* triplets feed the canvas drawing code.
+ */
 :root {
-  --background: #05070a;
-  --foreground: #ededed;
-  --muted: #9aa3ad;
-  --border: #1f262e;
-  --surface: #0b0f14;
-  --ok: #3ecf6e;
-  --warn: #f5a524;
-  --err: #ff5c5c;
-  --focus: #52a8ff;
-  --accent: #38bdf8;
-  --accent2: #818cf8;
+  --background: #f6f8fc;
+  --foreground: #121a2b;
+  --muted: #475672;
+  --border: #cfd8e6;
+  --surface: #ffffff;
+  --ok: #15803d;
+  --warn: #b45309;
+  --err: #c62828;
+  --focus: #1f4fd8;
+  --accent: #1f4fd8;
+  --accent2: #0891b2;
+  --grid: rgba(31, 79, 216, 0.07);
+  --rgb-accent: 31, 79, 216;
+  --rgb-accent2: 8, 145, 178;
+}
+
+html[data-theme="dark"] {
+  --background: #0b1220;
+  --foreground: #e8eef9;
+  --muted: #92a2be;
+  --border: #22304a;
+  --surface: #111b2e;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --focus: #6b9bff;
+  --accent: #5b8cff;
+  --accent2: #22d3ee;
+  --grid: rgba(91, 140, 255, 0.07);
+  --rgb-accent: 91, 140, 255;
+  --rgb-accent2: 34, 211, 238;
 }
 
 @theme inline {
@@ -35,12 +60,32 @@ h1, h2, h3 {
   letter-spacing: -0.03em;
 }
 
-html { scroll-behavior: smooth; color-scheme: dark; }
+/* Light theme: editorial serif headlines, heavier body weight and sharper text for legibility. */
+.font-display { font-family: var(--font-geist-sans), system-ui, sans-serif; }
+html:not([data-theme="dark"]) h1,
+html:not([data-theme="dark"]) h2,
+html:not([data-theme="dark"]) .font-display {
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+html:not([data-theme="dark"]) body { font-weight: 450; -webkit-font-smoothing: antialiased; }
+html:not([data-theme="dark"]) .gradient-text { font-style: italic; }
 
+html { scroll-behavior: smooth; color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
+/* A faint engineering grid under everything, like a blueprint. */
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -14,7 +14,7 @@ export function Logo() {
   return (
     <span className="flex items-center gap-3">
       {file && (
-        <Image src={`/${file}`} alt="" width={96} height={96} priority className="h-10 w-auto sm:h-12" unoptimized={file.endsWith(".svg")} />
+        <Image src={`/${file}`} alt="" width={96} height={96} priority className="h-10 w-auto rounded-md sm:h-12" unoptimized={file.endsWith(".svg")} />
       )}
       <span className="whitespace-nowrap text-[1.5rem] font-bold leading-none tracking-tight text-foreground sm:text-[2rem]">7C Labs</span>
     </span>

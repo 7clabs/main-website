@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { OpenChatButton } from "./ChatWidget";
+import { ThemeToggle } from "./ThemeToggle";
 
 // Absolute "/#..." links work from every page and stay on the page when already on the home page.
 const nav = [
@@ -22,7 +23,8 @@ export function SiteHeader() {
               <Link key={n.href} href={n.href} className="transition-colors hover:text-foreground">{n.label}</Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
             <OpenChatButton className="whitespace-nowrap rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background transition-transform hover:scale-105 sm:px-5 sm:py-2.5 sm:text-base">Talk to us</OpenChatButton>
             <details className="md:hidden">
               <summary className="cursor-pointer list-none whitespace-nowrap rounded-full border border-border px-3 py-2 text-sm sm:px-4 sm:py-2.5 sm:text-base">Menu</summary>
