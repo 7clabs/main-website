@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { AiOpsBackground } from "@/components/AiOpsBackground";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -7,8 +8,15 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Technical, slightly geometric display face for headings.
+const display = Space_Grotesk({
+  variable: "--font-display",
+  subsets: ["latin"],
+});
+
+// Terminal-style mono for labels, logs and status text.
+const mono = JetBrains_Mono({
+  variable: "--font-mono-jb",
   subsets: ["latin"],
 });
 
@@ -31,9 +39,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AiOpsBackground />
+        {children}
+      </body>
     </html>
   );
 }
