@@ -1,5 +1,5 @@
 export const CONTACT_EMAIL = "contact@7clabs.com";
-export const INFO_EMAIL = "info@7clabs.co";
+export const INFO_EMAIL = "info@7clabs.com";
 export const COMPANY = "7CLABS ENTERPRISE PRIVATE LIMITED";
 
 export type ProductId = "secure-delivery" | "resilience" | "ai-monitor" | "cloudops";
