@@ -35,11 +35,17 @@ export function AiOpsBackground() {
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const widthChanged = Math.abs(window.innerWidth - w) > 40;
       w = window.innerWidth;
       h = window.innerHeight;
       canvas!.width = w * dpr;
       canvas!.height = h * dpr;
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Mobile browsers fire resize when the address bar hides; keep the network unless the width really changed.
+      if (!widthChanged && nodes.length) {
+        if (reduced) frame();
+        return;
+      }
       const count = Math.min(90, Math.max(28, Math.floor((w * h) / 18000)));
       nodes = Array.from({ length: count }, () => ({
         x: Math.random() * w,
@@ -51,6 +57,7 @@ export function AiOpsBackground() {
         timer: 0,
       }));
       packets = [];
+      if (reduced) frame();
     }
 
     function frame() {
@@ -177,18 +184,21 @@ export function AiOpsBackground() {
     }
 
     const move = (e: PointerEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-    const leave = () => { mouse.x = mouse.y = -9999; };
+    // window never fires pointerleave; pointerout with no relatedTarget means the pointer left the page.
+    const leave = (e: PointerEvent) => {
+      if (!e.relatedTarget) mouse.x = mouse.y = -9999;
+    };
 
     resize();
-    frame();
+    if (!reduced) frame();
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", move);
-    window.addEventListener("pointerleave", leave);
+    window.addEventListener("pointerout", leave);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerleave", leave);
+      window.removeEventListener("pointerout", leave);
     };
   }, []);
 

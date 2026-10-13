@@ -1,17 +1,11 @@
 import nodemailer from "nodemailer";
 import { CONTACT_EMAIL } from "@/app/content";
+import { clientIp, createLimiter } from "@/lib/rateLimit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Best-effort per-instance throttle: 5 messages per 10 minutes per IP.
-const hits = new Map<string, number[]>();
-function limited(ip: string) {
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 10 * 60 * 1000);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > 5;
-}
+// 5 messages per 10 minutes per IP.
+const limited = createLimiter(5, 10 * 60 * 1000);
 
 const clean = (v: unknown, max: number) =>
   typeof v === "string" ? v.replace(/\r/g, "").trim().slice(0, max) : "";
@@ -35,8 +29,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Please fill in your name, a valid email and a message." }, { status: 400 });
   }
 
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (limited(ip)) {
+  if (limited(clientIp(req))) {
     return Response.json({ error: "Too many messages. Please try again later." }, { status: 429 });
   }
 

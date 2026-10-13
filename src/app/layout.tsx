@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { AiOpsBackground } from "@/components/AiOpsBackground";
+import { ChatWidget } from "@/components/ChatWidget";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <AiOpsBackground />
         {children}
+        <ChatWidget />
       </body>
     </html>
   );

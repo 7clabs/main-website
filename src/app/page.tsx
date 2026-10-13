@@ -1,9 +1,11 @@
-import { ContactForm } from "@/components/ContactForm";
+import { OpenChatButton } from "@/components/ChatWidget";
+import { FeaturePolygon } from "@/components/FeaturePolygon";
 import { EventTicker } from "@/components/EventTicker";
 import { Logo } from "@/components/Logo";
 import { ProductMockup } from "@/components/Mockups";
 import { PipelineDemo } from "@/components/PipelineDemo";
 import { Reveal } from "@/components/Reveal";
+import { SdlcTree } from "@/components/SdlcTree";
 import { SignalGraph } from "@/components/SignalGraph";
 import {
   COMPANY,
@@ -64,6 +66,8 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+              <a href="#features" className="hover:text-foreground">Features</a>
+              <a href="#sdlc-tree" className="hover:text-foreground">SDLC tree</a>
               <a href="#platform" className="hover:text-foreground">Platform</a>
               <a href="#governance" className="hover:text-foreground">Governance</a>
               <a href="#services" className="hover:text-foreground">Services</a>
@@ -79,6 +83,8 @@ export default function Home() {
                   {products.map((p) => (
                     <a key={p.id} href={`#${p.id}`} className="rounded px-3 py-2 hover:bg-border">{p.name}</a>
                   ))}
+                  <a href="#features" className="rounded px-3 py-2 hover:bg-border">Features</a>
+                  <a href="#sdlc-tree" className="rounded px-3 py-2 hover:bg-border">SDLC tree</a>
                   <a href="#platform" className="rounded px-3 py-2 hover:bg-border">Platform</a>
                   <a href="#governance" className="rounded px-3 py-2 hover:bg-border">Governance</a>
                   <a href="#services" className="rounded px-3 py-2 hover:bg-border">Services</a>
@@ -108,7 +114,7 @@ export default function Home() {
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
                   <a href="#contact" className={primaryBtn}>Request a demo</a>
-                  <a href="#secure-delivery" className={ghostBtn}>Explore products</a>
+                  <a href="#features" className={ghostBtn}>See all features</a>
                 </div>
               </div>
               <PipelineDemo />
@@ -128,6 +134,21 @@ export default function Home() {
                 </div>
               ))}
             </dl>
+          </Wrap>
+        </section>
+
+        <FeaturePolygon />
+
+        <section id="sdlc-tree" className="scroll-mt-14 border-t border-border py-24">
+          <Wrap>
+            <Heading
+              eyebrow="The SDLC tree"
+              title="Nine agents. One living lifecycle."
+              lede="Every branch is a stage of delivery, from the first architecture sketch to production observability. An AI agent works each branch, and a person approves every step that matters. Drag to turn the tree, or pick a bird to see what its agent does."
+            />
+            <Reveal delay={120} className="mt-12">
+              <SdlcTree />
+            </Reveal>
           </Wrap>
         </section>
 
@@ -239,11 +260,14 @@ export default function Home() {
               title="Tell us what you are building."
               lede="Request a demo or a first assessment. We will reply with how the platform would fit your delivery and operations."
             />
+            <div className="mt-10 flex flex-wrap gap-3">
+              <OpenChatButton className={primaryBtn}>Ask our assistant</OpenChatButton>
+              <OpenChatButton tab="contact" className={ghostBtn}>Message the team</OpenChatButton>
+            </div>
             <div className="mt-8 text-muted">
-              Write to <a className="text-accent underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, or for
+              Or write to <a className="text-accent underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, or for
               general information <a className="text-accent underline" href={`mailto:${INFO_EMAIL}`}>{INFO_EMAIL}</a>.
             </div>
-            <div className="mt-10"><ContactForm /></div>
           </Wrap>
         </section>
       </main>
