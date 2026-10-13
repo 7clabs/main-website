@@ -1,5 +1,6 @@
 import { AutonomyDial } from "@/components/AutonomyDial";
 import { OpenChatButton } from "@/components/ChatWidget";
+import { FlowRibbon } from "@/components/FlowRibbon";
 import { Logo } from "@/components/Logo";
 import { ProductCards } from "@/components/ProductCards";
 import { Reveal } from "@/components/Reveal";
@@ -67,22 +68,25 @@ export default function Home() {
         <section className="relative">
           <div className="hero-bg" aria-hidden />
           <Wrap>
-            <div className="relative flex min-h-[80svh] flex-col justify-center py-16">
-              <p className="w-fit rounded-full border border-border px-3 py-1 font-mono text-xs text-muted">
-                <span className="status-live text-ok" aria-hidden>&#9679; </span>
-                Secure &middot; Observable &middot; AI-ready
-              </p>
-              <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-tight sm:text-7xl">
-                Plan to production, <span className="gradient-text">secure and observable.</span>
-              </h1>
-              <p className="mt-6 max-w-xl text-xl text-muted">
-                Nine AI agents. One platform. A person approves every step that matters.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <a href="#journey" className={primaryBtn}>Walk the journey</a>
-                <OpenChatButton className={ghostBtn}>Ask 7C</OpenChatButton>
+            <div className="relative flex min-h-[calc(100svh-3.5rem)] flex-col justify-center gap-8 py-10 sm:py-14">
+              <div>
+                <p className="w-fit rounded-full border border-border px-3 py-1 font-mono text-xs text-muted">
+                  <span className="status-live text-ok" aria-hidden>&#9679; </span>
+                  SDLC &middot; ADLC &middot; AI monitoring
+                </p>
+                <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-6xl">
+                  Your software lifecycle, run by <span className="gradient-text">AI agents you control.</span>
+                </h1>
+                <p className="mt-4 max-w-2xl text-lg text-muted sm:text-xl">
+                  Nine agents take you from architecture to observability, with security built in.
+                  A person approves every step that matters.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <a href="#journey" className={primaryBtn}>See it climb</a>
+                  <OpenChatButton className={ghostBtn}>Ask 7C</OpenChatButton>
+                </div>
               </div>
-              <p className="mt-12 font-mono text-xs text-muted" aria-hidden>&darr; scroll</p>
+              <FlowRibbon />
             </div>
           </Wrap>
         </section>
