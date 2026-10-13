@@ -122,6 +122,17 @@ body {
 .bar { transition: width 0.8s ease; }
 .flow { animation: dash 1s linear infinite; }
 .fade-in { animation: fade-in 0.5s ease both; }
+
+/* 3D tilt for cards; the pointer sets --rx / --ry. */
+.tilt {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease-out, border-color 0.2s;
+}
+.tilt:hover { border-color: rgba(var(--c), 0.6); }
+.tilt .glyph { transform: translateZ(36px); transition: transform 0.2s; }
+.tilt:hover .glyph * { stroke-dasharray: 160; animation: draw 1.1s ease both; }
+@keyframes draw { from { stroke-dashoffset: 160; } to { stroke-dashoffset: 0; } }
 .spin-slow { transform-box: fill-box; transform-origin: center; animation: spin 60s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .chat-ping { animation: ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
@@ -138,7 +149,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .gradient-text, .hero-bg::before, .hero-bg::after, .cursor::after, .status-live, .flow, .marquee, .fade-in, .spin-slow, .chat-ping { animation: none; }
+  .gradient-text, .hero-bg::before, .hero-bg::after, .cursor::after, .status-live, .flow, .marquee, .fade-in, .spin-slow, .chat-ping, .tilt:hover .glyph * { animation: none; }
+  .tilt { transform: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .card-glow:hover { transform: none; }
 }

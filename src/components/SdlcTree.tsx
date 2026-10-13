@@ -9,9 +9,9 @@ type Branch = { pts: V[]; twigs: V[][]; leaves: Leaf[]; tip: V; color: string; p
 type P = { x: number; y: number; z: number; s: number };
 
 const N = treeStages.length;
-const FLIGHT_MS = 1400;
-const STEP_MS = 4600;
+const FLIGHT_MS = 1300;
 const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const pad = (n: number) => String(n).padStart(2, "0");
 
 function useReducedMotion() {
   return useSyncExternalStore(
@@ -118,21 +118,29 @@ function drawBird(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
   ctx.restore();
 }
 
+/**
+ * Scroll-driven 3D tree. The section pins to the screen and scrolling walks up the tree, one stage
+ * per step. Hovering a bird (or a stage name) previews that stage. The pointer tilts the view.
+ */
 export function SdlcTree() {
+  const outerRef = useRef<HTMLElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [active, setActive] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const barRef = useRef<HTMLSpanElement>(null);
+  const [scrollIdx, setScrollIdx] = useState(0);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const reduced = useReducedMotion();
-  const autoplay = playing && !reduced;
+  const active = hoverIdx ?? scrollIdx;
 
   // Shared with the animation loop without re-running it.
   const anim = useRef({
     active: 0,
+    scrollIdx: 0,
     hover: -1,
-    yaw: 0,
-    pitch: 0.2,
-    targetYaw: null as number | null,
+    yaw: -Math.PI / 4,
+    targetYaw: -Math.PI / 4,
+    px: 0,
+    py: 0,
     flight: null as { from: number; to: number; start: number } | null,
     reduced: false,
   });
@@ -141,26 +149,46 @@ export function SdlcTree() {
     anim.current.reduced = reduced;
   }, [reduced]);
 
-  // When the stage changes: launch the lead bird and turn the tree to face the branch.
   useEffect(() => {
-    const a = anim.current;
-    if (a.active !== active && !a.reduced) a.flight = { from: a.active, to: active, start: performance.now() };
-    a.active = active;
-    const th = active * 2.39996;
-    let target = -Math.PI / 4 - th;
-    target += Math.PI * 2 * Math.round((a.yaw - target) / (Math.PI * 2));
-    a.targetYaw = target;
-    if (a.reduced) {
-      a.yaw = target;
-      a.targetYaw = null;
-    }
+    anim.current.active = active;
   }, [active]);
 
+  // Scrolling to a new stage: turn the tree to face it and fly the lead bird there.
   useEffect(() => {
-    if (!autoplay) return;
-    const id = setInterval(() => setActive((x) => (x + 1) % N), STEP_MS);
-    return () => clearInterval(id);
-  }, [autoplay]);
+    const a = anim.current;
+    if (a.scrollIdx !== scrollIdx && !a.reduced) a.flight = { from: a.scrollIdx, to: scrollIdx, start: performance.now() };
+    a.scrollIdx = scrollIdx;
+    let target = -Math.PI / 4 - scrollIdx * 2.39996;
+    target += Math.PI * 2 * Math.round((a.yaw - target) / (Math.PI * 2));
+    a.targetYaw = target;
+    if (a.reduced) a.yaw = target;
+  }, [scrollIdx]);
+
+  // Scroll position -> stage.
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    let raf = 0;
+    const update = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        const total = r.height - window.innerHeight;
+        const p = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0;
+        if (barRef.current) barRef.current.style.transform = `scaleX(${p})`;
+        const i = Math.min(N - 1, Math.floor(p * N));
+        setScrollIdx((prev) => (prev === i ? prev : i));
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -170,16 +198,15 @@ export function SdlcTree() {
 
     const tree = buildTree();
     const a = anim.current;
-    a.yaw = -Math.PI / 4;
     const mono = getComputedStyle(document.documentElement).getPropertyValue("--font-mono-jb") || "monospace";
     let w = 0;
     let h = 0;
     let raf = 0;
     let visible = true;
     let hits: { i: number; x: number; y: number }[] = [];
+    let pitch = 0.2;
     const trail: { x: number; y: number }[] = [];
     const sap = Array.from({ length: 22 }, (_, k) => ({ b: k % N, u: Math.random(), speed: 0.003 + Math.random() * 0.004 }));
-    const drag = { on: false, x: 0, y: 0, moved: 0 };
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -195,18 +222,16 @@ export function SdlcTree() {
       if (!visible || !w) return;
       const t = a.reduced ? 0 : now / 1000;
 
-      if (!drag.on && a.targetYaw !== null) {
-        a.yaw += (a.targetYaw - a.yaw) * 0.045;
-        if (Math.abs(a.targetYaw - a.yaw) < 0.002) a.targetYaw = null;
-      } else if (!drag.on && !a.reduced) {
-        a.yaw += 0.0012;
-      }
+      // Ease toward the scroll stage; the pointer adds a gentle parallax tilt.
+      a.yaw += (a.targetYaw - a.yaw) * 0.05;
+      const yaw = a.yaw + (a.reduced ? 0 : a.px * 0.45);
+      pitch += (0.2 + (a.reduced ? 0 : a.py * 0.22) - pitch) * 0.08;
 
-      const scale = Math.min(w * 0.5, h * 0.4);
+      const scale = Math.min(w * 0.5, h * 0.42);
       const cx = w / 2;
       const cy = h / 2 - 0.05 * scale;
-      const cosY = Math.cos(a.yaw), sinY = Math.sin(a.yaw);
-      const cosP = Math.cos(a.pitch), sinP = Math.sin(a.pitch);
+      const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+      const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
       const P = (p: V): P => {
         const x = p.x * cosY - p.z * sinY;
         const z = p.x * sinY + p.z * cosY;
@@ -219,7 +244,6 @@ export function SdlcTree() {
       ctx!.clearRect(0, 0, w, h);
       ctx!.lineCap = "round";
 
-      // Ground rings
       for (const rad of [0.45, 0.85, 1.25]) {
         ctx!.strokeStyle = `rgba(56,189,248,${0.16 - rad * 0.06})`;
         ctx!.lineWidth = 1;
@@ -250,7 +274,7 @@ export function SdlcTree() {
 
       const drawBranch = (i: number) => {
         const b = tree.branches[i];
-        const on = i === a.active || i === a.hover;
+        const on = i === a.active;
         ctx!.shadowColor = `rgb(${b.color})`;
         ctx!.shadowBlur = on ? 14 : 0;
         line(b.pts, 4.5, 1.3, `rgba(${b.color},${on ? 0.95 : 0.42})`);
@@ -314,11 +338,11 @@ export function SdlcTree() {
         if (!(flight && flight.to === i)) {
           drawBird(ctx!, q.x, q.y, 8 * q.s * (on ? 1.5 : 1), 0.35 + 0.2 * Math.sin(t * 3 + i * 1.7), tree.branches[i].color, on ? 18 : 6);
         }
-        ctx!.fillStyle = `rgba(237,237,237,${on || i === a.hover ? 0.95 : 0.45})`;
-        ctx!.fillText(String(i + 1).padStart(2, "0"), q.x + 12 * q.s, q.y + 4);
+        ctx!.fillStyle = `rgba(237,237,237,${on ? 0.95 : 0.45})`;
+        ctx!.fillText(pad(i + 1), q.x + 12 * q.s, q.y + 4);
       }
 
-      // Lead agent flying the flow from the previous stage to the current one.
+      // Lead agent flying the flow from the previous stage to the next.
       if (flight) {
         const p = Math.min(1, (now - flight.start) / FLIGHT_MS);
         const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
@@ -342,7 +366,7 @@ export function SdlcTree() {
         trail.length = 0;
       }
 
-      // Label for the hovered stage.
+      // Name tag on the hovered stage.
       if (a.hover >= 0) {
         const hit = hits.find((x) => x.i === a.hover);
         if (hit) {
@@ -362,12 +386,17 @@ export function SdlcTree() {
       }
     }
 
-    const pick = (e: PointerEvent) => {
+    // Hover only for a real mouse; on touch, scrolling drives the tree. Wider radius once hovering
+    // so the preview does not flicker at the edge of a bird.
+    const move = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
       const r = canvas.getBoundingClientRect();
       const x = e.clientX - r.left;
       const y = e.clientY - r.top;
+      a.px = x / r.width - 0.5;
+      a.py = y / r.height - 0.5;
       let best = -1;
-      let bd = 28 * 28;
+      let bd = (a.hover >= 0 ? 38 : 28) ** 2;
       for (const hit of hits) {
         const d = (hit.x - x) ** 2 + (hit.y - y) ** 2;
         if (d < bd) {
@@ -375,47 +404,25 @@ export function SdlcTree() {
           best = hit.i;
         }
       }
-      return best;
-    };
-    const down = (e: PointerEvent) => {
-      Object.assign(drag, { on: true, x: e.clientX, y: e.clientY, moved: 0 });
-      canvas.setPointerCapture(e.pointerId);
-    };
-    const move = (e: PointerEvent) => {
-      if (drag.on) {
-        const dx = e.clientX - drag.x;
-        const dy = e.clientY - drag.y;
-        drag.moved += Math.abs(dx) + Math.abs(dy);
-        a.yaw += dx * 0.008;
-        a.pitch = Math.min(0.6, Math.max(-0.05, a.pitch + dy * 0.004));
-        a.targetYaw = null;
-        Object.assign(drag, { x: e.clientX, y: e.clientY });
-        return;
+      if (best !== a.hover) {
+        a.hover = best;
+        setHoverIdx(best >= 0 ? best : null);
       }
-      a.hover = pick(e);
-      canvas.style.cursor = a.hover >= 0 ? "pointer" : "grab";
-    };
-    const up = (e: PointerEvent) => {
-      if (drag.on && drag.moved < 6) {
-        const i = pick(e);
-        if (i >= 0) {
-          setPlaying(false);
-          setActive(i);
-        }
-      }
-      drag.on = false;
+      canvas.style.cursor = best >= 0 ? "pointer" : "default";
     };
     const leave = () => {
-      a.hover = -1;
+      a.px = a.py = 0;
+      if (a.hover !== -1) {
+        a.hover = -1;
+        setHoverIdx(null);
+      }
     };
 
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
     const io = new IntersectionObserver(([en]) => (visible = en.isIntersecting));
     io.observe(wrap);
-    canvas.addEventListener("pointerdown", down);
     canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointerleave", leave);
     resize();
     raf = requestAnimationFrame(frame);
@@ -424,105 +431,97 @@ export function SdlcTree() {
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
-      canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
-      canvas.removeEventListener("pointerup", up);
       canvas.removeEventListener("pointerleave", leave);
     };
   }, []);
 
+  function go(i: number) {
+    const el = outerRef.current;
+    if (!el) return;
+    const top = window.scrollY + el.getBoundingClientRect().top + ((i + 0.5) / N) * (el.offsetHeight - window.innerHeight);
+    window.scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
+  }
+
   const s = treeStages[active];
-  const next = treeStages[(active + 1) % N];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr]">
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-[radial-gradient(ellipse_at_50%_40%,rgba(56,189,248,0.10),transparent_65%)]">
-        <div ref={wrapRef} className="h-[480px] w-full touch-none sm:h-[600px]">
-          <canvas
-            ref={canvasRef}
-            role="img"
-            aria-label={`Interactive 3D tree of nine SDLC stages. Selected: stage ${active + 1}, ${s.title}. Use the stage buttons below to choose a stage.`}
-            className="h-full w-full cursor-grab"
-          />
-        </div>
-        <div className="pointer-events-none absolute left-4 top-4 font-mono text-xs text-muted">
-          drag to rotate &middot; click a bird to open its stage
-        </div>
-        <button
-          onClick={() => setPlaying((p) => !p)}
-          disabled={reduced}
-          className="absolute right-4 top-4 rounded-full border border-border bg-surface/80 px-3 py-1 font-mono text-xs backdrop-blur hover:border-accent disabled:opacity-50"
-        >
-          {autoplay ? "❚❚ Pause flow" : "▶ Play flow"}
-        </button>
-      </div>
+    <section
+      ref={outerRef}
+      id="journey"
+      aria-label="Plan to production in nine stages"
+      className="relative border-t border-border"
+      style={{ height: `${N * 48 + 100}vh` }}
+    >
+      <div className="sticky top-14 flex h-[calc(100svh-3.5rem)] flex-col justify-center overflow-hidden px-6">
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="font-mono text-sm text-accent">Plan to production</p>
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-4xl">Nine stages. Nine agents. You approve.</h2>
+            </div>
+            <p className="hidden font-mono text-xs text-muted sm:block">scroll to climb &middot; hover a bird to preview</p>
+          </div>
 
-      <aside aria-live="polite" className="flex flex-col rounded-2xl border border-border bg-surface/90 p-6 backdrop-blur">
-        <div className="flex items-center justify-between font-mono text-xs text-muted">
-          <span>Stage {String(active + 1).padStart(2, "0")} / {String(N).padStart(2, "0")}</span>
-          <span style={{ color: `rgb(${s.color})` }}>&#9679; {s.agent}</span>
-        </div>
-        <div className="mt-3 flex gap-1" aria-hidden>
-          {treeStages.map((st, i) => (
-            <span
-              key={st.short}
-              className="h-1 flex-1 rounded-full transition-colors duration-500"
-              style={{ background: i <= active ? `rgb(${st.color})` : "var(--border)" }}
-            />
-          ))}
-        </div>
+          <div className="mt-3 grid items-center gap-4 lg:grid-cols-[1.5fr_1fr]">
+            <div ref={wrapRef} className="relative h-[38svh] overflow-hidden rounded-2xl border border-border bg-[radial-gradient(ellipse_at_50%_40%,rgba(56,189,248,0.10),transparent_65%)] sm:h-[52svh]">
+              <canvas
+                ref={canvasRef}
+                role="img"
+                aria-label={`3D tree of nine SDLC stages. Current stage ${active + 1}: ${s.title}.`}
+                className="h-full w-full"
+              />
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-border">
+                <span ref={barRef} className="block h-full origin-left bg-gradient-to-r from-accent to-accent2" style={{ transform: "scaleX(0)" }} />
+              </span>
+            </div>
 
-        <div key={active} className="fade-in mt-6 flex-1">
-          <h3 className="text-2xl font-semibold">{s.title}</h3>
-          <p className="mt-3 text-muted">{s.does}</p>
+            <aside aria-live="polite" className="rounded-2xl border border-border bg-surface/90 p-5 backdrop-blur">
+              <div key={active} className="fade-in">
+                <div className="flex items-center justify-between font-mono text-xs text-muted">
+                  <span>{pad(active + 1)} / {pad(N)}</span>
+                  <span style={{ color: `rgb(${s.color})` }}>&#9679; {s.agent}</span>
+                </div>
+                <h3 className="mt-2 text-xl font-semibold sm:text-2xl">{s.title}</h3>
+                <p className="mt-2 text-sm text-muted sm:text-base">{s.does}</p>
+                <p className="mt-3 text-sm">
+                  <span className="font-mono text-xs text-warn">YOU APPROVE </span>
+                  {s.gate}
+                </p>
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {s.outputs.map((o) => (
+                    <li key={o} className="rounded-full border px-2.5 py-0.5 text-xs" style={{ borderColor: `rgba(${s.color},0.5)` }}>
+                      {o}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </aside>
+          </div>
 
-          <p className="mt-5 text-sm">
-            <span className="font-mono text-xs text-warn">HUMAN GATE</span>
-            <span className="mt-1 block">{s.gate}</span>
-          </p>
-
-          <ul className="mt-5 flex flex-wrap gap-2">
-            {s.outputs.map((o) => (
-              <li key={o} className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: `rgba(${s.color},0.5)` }}>
-                {o}
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-5 rounded-lg border border-border bg-background/60 p-3 font-mono text-xs leading-6">
-            {s.log.map((l, i) => (
-              <p key={l} className="fade-in" style={{ animationDelay: `${i * 350}ms` }}>
-                <span style={{ color: `rgb(${s.color})` }}>›</span> {l}
-              </p>
+          {/* All nine in one glance. Hover or focus previews; click jumps there. */}
+          <div className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap" role="group" aria-label="Stages" onMouseLeave={() => setHoverIdx(null)}>
+            {treeStages.map((st, i) => (
+              <button
+                key={st.short}
+                aria-current={i === active ? "step" : undefined}
+                onMouseEnter={() => setHoverIdx(i)}
+                onFocus={() => setHoverIdx(i)}
+                onBlur={() => setHoverIdx(null)}
+                onClick={() => go(i)}
+                className="shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors"
+                style={
+                  i === active
+                    ? { borderColor: `rgb(${st.color})`, background: `rgba(${st.color},0.12)`, color: `rgb(${st.color})` }
+                    : { borderColor: "var(--border)", color: "var(--muted)" }
+                }
+              >
+                <span className="font-mono opacity-70">{pad(i + 1)}</span> {st.short}
+              </button>
             ))}
           </div>
         </div>
-
-        <p className="mt-6 text-sm text-muted">
-          Hands off to <span className="text-foreground">{active === N - 1 ? "Architecture design (next cycle)" : next.title}</span>
-        </p>
-      </aside>
-
-      <div className="flex flex-wrap gap-2 lg:col-span-2" role="group" aria-label="SDLC stages">
-        {treeStages.map((st, i) => (
-          <button
-            key={st.short}
-            aria-pressed={i === active}
-            onClick={() => {
-              setPlaying(false);
-              setActive(i);
-            }}
-            className="rounded-full border px-3 py-1.5 text-sm transition-colors"
-            style={
-              i === active
-                ? { borderColor: `rgb(${st.color})`, background: `rgba(${st.color},0.12)`, color: `rgb(${st.color})` }
-                : { borderColor: "var(--border)" }
-            }
-          >
-            <span className="font-mono text-xs opacity-70">{String(i + 1).padStart(2, "0")}</span> {st.short}
-          </button>
-        ))}
       </div>
-    </div>
+    </section>
   );
 }

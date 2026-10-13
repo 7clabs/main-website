@@ -1,39 +1,33 @@
+import { AutonomyDial } from "@/components/AutonomyDial";
 import { OpenChatButton } from "@/components/ChatWidget";
-import { FeaturePolygon } from "@/components/FeaturePolygon";
-import { EventTicker } from "@/components/EventTicker";
 import { Logo } from "@/components/Logo";
-import { ProductMockup } from "@/components/Mockups";
-import { PipelineDemo } from "@/components/PipelineDemo";
+import { ProductCards } from "@/components/ProductCards";
 import { Reveal } from "@/components/Reveal";
 import { SdlcTree } from "@/components/SdlcTree";
-import { SignalGraph } from "@/components/SignalGraph";
-import {
-  COMPANY,
-  CONTACT_EMAIL,
-  governance,
-  INFO_EMAIL,
-  levels,
-  products,
-  services,
-  strip,
-} from "./content";
+import { COMPANY, CONTACT_EMAIL, INFO_EMAIL, services } from "./content";
+
+const nav = [
+  { href: "#journey", label: "Journey" },
+  { href: "#products", label: "Products" },
+  { href: "#trust", label: "Trust" },
+  { href: "#services", label: "Services" },
+];
+
+const primaryBtn = "rounded-md bg-foreground px-5 py-2.5 font-medium text-background";
+const ghostBtn = "rounded-md border border-border px-5 py-2.5 font-medium hover:border-accent";
 
 function Wrap({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-6xl px-6">{children}</div>;
 }
 
-function Heading({ eyebrow, title, lede }: { eyebrow?: string; title: string; lede?: string }) {
+function Title({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
   return (
     <Reveal>
-      {eyebrow && <p className="font-mono text-sm text-accent">{eyebrow}</p>}
-      <h2 className="mt-2 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
-      {lede && <p className="mt-4 max-w-2xl text-lg text-muted">{lede}</p>}
+      <p className="font-mono text-sm text-accent">{eyebrow}</p>
+      <h2 className="mt-1 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">{children}</h2>
     </Reveal>
   );
 }
-
-const primaryBtn = "rounded-md bg-foreground px-5 py-2.5 font-medium text-background";
-const ghostBtn = "rounded-md border border-border px-5 py-2.5 font-medium hover:border-accent";
 
 export default function Home() {
   return (
@@ -49,45 +43,19 @@ export default function Home() {
         <Wrap>
           <div className="relative flex h-14 items-center justify-between">
             <a href="#" aria-label="7C Labs home"><Logo /></a>
-
-            <nav aria-label="Primary" className="hidden items-center gap-7 text-sm text-muted md:flex">
-              <div className="group relative">
-                <button className="hover:text-foreground group-focus-within:text-foreground" aria-haspopup="true">
-                  Products &#9662;
-                </button>
-                <div className="invisible absolute left-1/2 top-full w-[34rem] -translate-x-1/2 pt-3 opacity-0 transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
-                  <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface p-3 shadow-2xl">
-                    {products.map((p) => (
-                      <a key={p.id} href={`#${p.id}`} className="rounded-md p-3 hover:bg-border">
-                        <span className="block font-medium text-foreground">{p.name}</span>
-                        <span className="mt-0.5 block text-xs">{p.short}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <a href="#features" className="hover:text-foreground">Features</a>
-              <a href="#sdlc-tree" className="hover:text-foreground">SDLC tree</a>
-              <a href="#platform" className="hover:text-foreground">Platform</a>
-              <a href="#governance" className="hover:text-foreground">Governance</a>
-              <a href="#services" className="hover:text-foreground">Services</a>
+            <nav aria-label="Primary" className="hidden gap-7 text-sm text-muted md:flex">
+              {nav.map((n) => (
+                <a key={n.href} href={n.href} className="hover:text-foreground">{n.label}</a>
+              ))}
             </nav>
-
             <div className="flex items-center gap-3">
-              <a href="#contact" className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background">
-                Talk to us
-              </a>
+              <OpenChatButton className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background">Talk to us</OpenChatButton>
               <details className="md:hidden">
                 <summary className="cursor-pointer list-none rounded-md border border-border px-3 py-1.5 text-sm">Menu</summary>
-                <nav aria-label="Mobile" className="absolute right-0 top-14 grid w-56 gap-1 rounded-md border border-border bg-surface p-2 text-sm">
-                  {products.map((p) => (
-                    <a key={p.id} href={`#${p.id}`} className="rounded px-3 py-2 hover:bg-border">{p.name}</a>
+                <nav aria-label="Mobile" className="absolute right-0 top-14 grid w-48 gap-1 rounded-md border border-border bg-surface p-2 text-sm">
+                  {nav.map((n) => (
+                    <a key={n.href} href={n.href} className="rounded px-3 py-2 hover:bg-border">{n.label}</a>
                   ))}
-                  <a href="#features" className="rounded px-3 py-2 hover:bg-border">Features</a>
-                  <a href="#sdlc-tree" className="rounded px-3 py-2 hover:bg-border">SDLC tree</a>
-                  <a href="#platform" className="rounded px-3 py-2 hover:bg-border">Platform</a>
-                  <a href="#governance" className="rounded px-3 py-2 hover:bg-border">Governance</a>
-                  <a href="#services" className="rounded px-3 py-2 hover:bg-border">Services</a>
                 </nav>
               </details>
             </div>
@@ -99,153 +67,54 @@ export default function Home() {
         <section className="relative">
           <div className="hero-bg" aria-hidden />
           <Wrap>
-            <div className="relative grid items-center gap-12 py-20 sm:py-28 lg:grid-cols-[1.1fr_1fr]">
-              <div>
-                <p className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 font-mono text-xs text-muted">
-                  <span className="status-live text-ok" aria-hidden>&#9679;</span>
-                  AI for everything after code
-                </p>
-                <h1 className="mt-5 text-5xl font-semibold tracking-tight sm:text-6xl">
-                  Your platform for the <span className="gradient-text">secure, observable</span> software lifecycle.
-                </h1>
-                <p className="mt-6 max-w-xl text-lg text-muted">
-                  7C Labs brings DevSecOps, SRE and AI usage monitoring together, across your cloud
-                  platforms, with security built into every step.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <a href="#contact" className={primaryBtn}>Request a demo</a>
-                  <a href="#features" className={ghostBtn}>See all features</a>
-                </div>
+            <div className="relative flex min-h-[80svh] flex-col justify-center py-16">
+              <p className="w-fit rounded-full border border-border px-3 py-1 font-mono text-xs text-muted">
+                <span className="status-live text-ok" aria-hidden>&#9679; </span>
+                Secure &middot; Observable &middot; AI-ready
+              </p>
+              <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-tight sm:text-7xl">
+                Plan to production, <span className="gradient-text">secure and observable.</span>
+              </h1>
+              <p className="mt-6 max-w-xl text-xl text-muted">
+                Nine AI agents. One platform. A person approves every step that matters.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a href="#journey" className={primaryBtn}>Walk the journey</a>
+                <OpenChatButton className={ghostBtn}>Ask 7C</OpenChatButton>
               </div>
-              <PipelineDemo />
+              <p className="mt-12 font-mono text-xs text-muted" aria-hidden>&darr; scroll</p>
             </div>
           </Wrap>
         </section>
 
-        <EventTicker />
+        <SdlcTree />
 
-        <section className="border-t border-border" aria-label="Highlights">
+        <section id="products" className="scroll-mt-14 border-t border-border py-20">
           <Wrap>
-            <dl className="grid grid-cols-2 gap-px bg-border md:grid-cols-4">
-              {strip.map((s) => (
-                <div key={s.k} className="bg-background py-8 pr-4">
-                  <dt className="font-semibold">{s.k}</dt>
-                  <dd className="mt-1 text-sm text-muted">{s.v}</dd>
-                </div>
-              ))}
-            </dl>
+            <Title eyebrow="Products">Four products. One platform.</Title>
+            <div className="mt-10"><ProductCards /></div>
           </Wrap>
         </section>
 
-        <FeaturePolygon />
-
-        <section id="sdlc-tree" className="scroll-mt-14 border-t border-border py-24">
+        <section id="trust" className="scroll-mt-14 border-t border-border py-20">
           <Wrap>
-            <Heading
-              eyebrow="The SDLC tree"
-              title="Nine agents. One living lifecycle."
-              lede="Every branch is a stage of delivery, from the first architecture sketch to production observability. An AI agent works each branch, and a person approves every step that matters. Drag to turn the tree, or pick a bird to see what its agent does."
-            />
-            <Reveal delay={120} className="mt-12">
-              <SdlcTree />
-            </Reveal>
+            <div className="mx-auto max-w-2xl text-center">
+              <Title eyebrow="Trust">AI proposes. You decide.</Title>
+              <div className="mt-10 text-left"><AutonomyDial /></div>
+            </div>
           </Wrap>
         </section>
 
-        <div id="platform" className="scroll-mt-14">
-          {products.map((p, i) => (
-            <section key={p.id} id={p.id} className="scroll-mt-14 border-t border-border py-24">
-              <Wrap>
-                <div className="grid items-center gap-12 lg:grid-cols-2">
-                  <div className={i % 2 ? "lg:order-2" : ""}>
-                    <Reveal>
-                      <p className="font-mono text-sm text-accent">{p.eyebrow}</p>
-                      <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{p.name}</h2>
-                      <p className="mt-4 text-lg text-muted">{p.value}</p>
-                    </Reveal>
-                    <ul className="mt-8 space-y-5">
-                      {p.features.map((f, j) => (
-                        <li key={f.title}>
-                          <Reveal delay={j * 90}>
-                            <h3 className="font-semibold">{f.title}</h3>
-                            <p className="mt-1 text-muted">{f.text}</p>
-                          </Reveal>
-                        </li>
-                      ))}
-                    </ul>
-                    <ul className="mt-8 flex flex-wrap gap-2">
-                      {p.tags.map((t) => (
-                        <li key={t} className="rounded-full border border-border px-3 py-1 text-xs text-muted">{t}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <Reveal delay={120} className={i % 2 ? "lg:order-1" : ""}>
-                    <ProductMockup id={p.id} />
-                  </Reveal>
-                </div>
-              </Wrap>
-            </section>
-          ))}
-        </div>
-
-        <section className="border-t border-border py-24">
+        <section id="services" className="scroll-mt-14 border-t border-border py-20">
           <Wrap>
-            <Heading
-              eyebrow="One connected platform"
-              title="Every signal in one graph, so you can see the cause behind a risk or a cost."
-              lede="Builds, deployments, scans, cloud spend and AI usage feed a shared view. That is what lets a recommendation point to the real change behind it."
-            />
-            <div className="mt-12"><SignalGraph /></div>
-          </Wrap>
-        </section>
-
-        <section id="governance" className="scroll-mt-14 border-t border-border py-24">
-          <Wrap>
-            <Heading
-              eyebrow="Risk and governance"
-              title="AI recommends. You decide how much it can do."
-              lede="Choose the level of autonomy for each workflow, and change it any time."
-            />
-            <ol className="mt-12 grid gap-4 md:grid-cols-3">
-              {levels.map((l, i) => (
-                <li key={l.level}>
-                  <Reveal delay={i * 90}>
-                    <div className="card-glow h-full rounded-xl border border-border bg-surface p-6">
-                      <span className="font-mono text-sm text-accent">{l.level}</span>
-                      <h3 className="mt-2 text-xl font-semibold">{l.name}</h3>
-                      <p className="mt-2 text-muted">{l.text}</p>
-                    </div>
-                  </Reveal>
-                </li>
-              ))}
-            </ol>
-            <dl className="mt-12 grid gap-8 md:grid-cols-3">
-              {governance.map((g) => (
-                <div key={g.title}>
-                  <dt className="font-semibold">{g.title}</dt>
-                  <dd className="mt-1 text-muted">{g.text}</dd>
-                </div>
-              ))}
-            </dl>
-          </Wrap>
-        </section>
-
-        <section id="services" className="scroll-mt-14 border-t border-border py-24">
-          <Wrap>
-            <Heading
-              eyebrow="Services"
-              title="Software is one half. Our engineers are the other."
-              lede="Work with us at the depth that suits you, from a first assessment to running operations together."
-            />
-            <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Title eyebrow="Services">Software, plus the people to land it.</Title>
+            <ol className="mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
               {services.map((s, i) => (
-                <li key={s.name}>
-                  <Reveal delay={i * 90}>
-                    <div className="card-glow h-full rounded-xl border border-border bg-surface p-6">
-                      <span className="font-mono text-sm text-muted">0{i + 1}</span>
-                      <h3 className="mt-2 text-xl font-semibold">{s.name}</h3>
-                      <p className="mt-2 text-muted">{s.text}</p>
-                    </div>
+                <li key={s.name} className="border-t border-border pt-4">
+                  <Reveal delay={i * 80}>
+                    <span className="font-mono text-xs text-muted">0{i + 1}</span>
+                    <h3 className="mt-1 text-lg font-semibold">{s.name}</h3>
+                    <p className="mt-1 text-sm text-muted">{s.text}</p>
                   </Reveal>
                 </li>
               ))}
@@ -255,35 +124,24 @@ export default function Home() {
 
         <section id="contact" className="scroll-mt-14 border-t border-border py-24">
           <Wrap>
-            <Heading
-              eyebrow="Get started"
-              title="Tell us what you are building."
-              lede="Request a demo or a first assessment. We will reply with how the platform would fit your delivery and operations."
-            />
-            <div className="mt-10 flex flex-wrap gap-3">
-              <OpenChatButton className={primaryBtn}>Ask our assistant</OpenChatButton>
-              <OpenChatButton tab="contact" className={ghostBtn}>Message the team</OpenChatButton>
-            </div>
-            <div className="mt-8 text-muted">
-              Or write to <a className="text-accent underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, or for
-              general information <a className="text-accent underline" href={`mailto:${INFO_EMAIL}`}>{INFO_EMAIL}</a>.
+            <div className="mx-auto max-w-2xl text-center">
+              <Title eyebrow="Get started">Tell us what you are building.</Title>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <OpenChatButton className={primaryBtn}>Ask 7C</OpenChatButton>
+                <OpenChatButton tab="contact" className={ghostBtn}>Message the team</OpenChatButton>
+              </div>
+              <p className="mt-6 text-sm text-muted">
+                <a className="hover:text-foreground" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+                {" · "}
+                <a className="hover:text-foreground" href={`mailto:${INFO_EMAIL}`}>{INFO_EMAIL}</a>
+              </p>
             </div>
           </Wrap>
         </section>
       </main>
 
-      <footer className="border-t border-border py-10 text-sm text-muted">
-        <Wrap>
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            {products.map((p) => (
-              <a key={p.id} href={`#${p.id}`} className="hover:text-foreground">{p.name}</a>
-            ))}
-            <a href="#services" className="hover:text-foreground">Services</a>
-            <a href="#contact" className="hover:text-foreground">Contact</a>
-          </div>
-          <p className="mt-6">&copy; {COMPANY}. All rights reserved.</p>
-          <p className="mt-1">7clabs.com &middot; {CONTACT_EMAIL} &middot; {INFO_EMAIL}</p>
-        </Wrap>
+      <footer className="border-t border-border py-8 text-center text-xs text-muted">
+        &copy; {COMPANY} &middot; 7clabs.com
       </footer>
     </>
   );
