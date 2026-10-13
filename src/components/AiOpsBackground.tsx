@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { drawSplat, makeSplat, type Splat } from "@/lib/splat";
 
 type Node = { x: number; y: number; vx: number; vy: number; r: number; state: 0 | 1 | 2; timer: number };
 type Packet = { a: number; b: number; t: number; speed: number; violet: boolean };
@@ -10,6 +11,7 @@ const CYAN = "56,189,248";
 const VIOLET = "129,140,248";
 const RED = "255,92,92";
 const GREEN = "62,207,110";
+const PAINT = ["56,189,248", "129,140,248", "167,139,250", "244,114,182", "62,207,110", "245,165,36"];
 
 /**
  * Full-page "AIOps" view: services drift as a network, telemetry packets travel the links,
@@ -32,6 +34,29 @@ export function AiOpsBackground() {
     let nextIncident = 120;
     let tick = 0;
     let raf = 0;
+
+    // Paint splashes across the page: one bursts at the page edge each time you scroll to a new
+    // screen, and a small one wherever you click on empty space.
+    let splats: { s: Splat; x: number; y: number; r: number; c: string }[] = [];
+    let band = -1;
+    const spawn = (x: number, y: number, r: number, big: boolean) => {
+      if (reduced) return;
+      splats.push({ s: makeSplat(big, performance.now()), x, y, r, c: PAINT[Math.floor(Math.random() * PAINT.length)] });
+      if (splats.length > 8) splats.shift();
+    };
+    const onScroll = () => {
+      const b = Math.floor(window.scrollY / (window.innerHeight * 0.8));
+      if (b === band) return;
+      const first = band === -1;
+      band = b;
+      if (first) return;
+      const left = Math.random() < 0.5;
+      spawn(w * (left ? 0.03 + Math.random() * 0.1 : 0.87 + Math.random() * 0.1), h * (0.2 + Math.random() * 0.6), Math.min(w, 900) * (0.09 + Math.random() * 0.06), true);
+    };
+    const onDown = (e: PointerEvent) => {
+      if ((e.target as Element | null)?.closest("a,button,input,textarea,select,summary,label,canvas,[role=dialog]")) return;
+      spawn(e.clientX, e.clientY, 80, false);
+    };
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -65,6 +90,17 @@ export function AiOpsBackground() {
       ctx!.clearRect(0, 0, w, h);
       const fade = Math.max(0.3, 1 - window.scrollY / 1100);
       ctx!.globalAlpha = fade;
+
+      // Splashes sit behind the network.
+      if (splats.length) {
+        const now = performance.now();
+        splats = splats.filter((p) => now - p.s.born < (p.s.big ? 7000 : 2400));
+        ctx!.globalAlpha = 1;
+        ctx!.globalCompositeOperation = "lighter";
+        for (const p of splats) drawSplat(ctx!, p.s, p.x, p.y, p.r, (now - p.s.born) / 1000, p.c, p.s.big ? 7 : 2.4, 0, 0.5);
+        ctx!.globalCompositeOperation = "source-over";
+        ctx!.globalAlpha = fade;
+      }
 
       // Move nodes, nudge them away from the pointer.
       for (const n of nodes) {
@@ -194,7 +230,12 @@ export function AiOpsBackground() {
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerout", leave);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pointerdown", onDown);
+    onScroll();
     return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pointerdown", onDown);
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", move);

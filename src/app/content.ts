@@ -113,3 +113,46 @@ export const treeStages = [
     outputs: ["SLO dashboards", "AI usage", "Incident reviews"],
   },
 ];
+
+/** Visionary lines for the About section. */
+export const aboutLines = [
+  "We are a team of experienced engineers.",
+  "We have spent our careers carrying the weight of platform engineering, turning business goals into running solutions.",
+  "We believe that weight can be lighter.",
+  "So we built 7C Labs: agents do the repeatable work, secure and compliant by default, and people keep every decision.",
+];
+
+export const aboutVision = "Every team ships fast and safe, with nothing left to chance.";
+
+export const aboutPillars = [
+  { title: "Engineers first", text: "Built by people who run platforms." },
+  { title: "Secure by default", text: "Compliance is part of the path, not a gate at the end." },
+  { title: "Humans decide", text: "Agents prepare. People approve." },
+];
+
+export const roles = [
+  {
+    id: "platform-intern",
+    title: "Platform Engineering Intern",
+    pitch: "Help build the automation that makes secure, compliant platforms easy to run.",
+    work: ["Infrastructure-as-code modules and pipelines", "Policy checks and platform guardrails", "Dashboards and alerts for platform health"],
+    skills: ["Linux and Git basics", "Containers (Docker; Kubernetes is a plus)", "One cloud: AWS, Azure or Google Cloud", "Scripting in Python, Bash or similar"],
+    color: "56,189,248",
+  },
+  {
+    id: "fullstack-intern",
+    title: "Full-Stack Development Intern",
+    pitch: "Build the product people use to run their lifecycle with AI agents.",
+    work: ["Product screens in React and Next.js", "APIs for agents, approvals and monitoring", "Tests and accessibility for every change"],
+    skills: ["TypeScript or JavaScript", "React or a similar framework", "REST APIs and databases", "Interest in secure coding"],
+    color: "167,139,250",
+  },
+  {
+    id: "devsecops-intern",
+    title: "DevSecOps and Cloud Security Intern",
+    pitch: "Bring security and compliance into every stage, automatically.",
+    work: ["Scans in the pipeline and fixes for findings", "Compliance rules written as code", "Monitoring for AI usage and data exposure"],
+    skills: ["Security fundamentals", "CI/CD concepts", "Cloud basics and least-privilege access", "Curiosity about compliance standards"],
+    color: "45,212,191",
+  },
+];

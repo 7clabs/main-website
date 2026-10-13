@@ -1,18 +1,13 @@
 import { AutonomyDial } from "@/components/AutonomyDial";
 import { OpenChatButton } from "@/components/ChatWidget";
 import { FlowRibbon } from "@/components/FlowRibbon";
-import { Logo } from "@/components/Logo";
 import { ProductCards } from "@/components/ProductCards";
 import { Reveal } from "@/components/Reveal";
-import { SdlcTree } from "@/components/SdlcTree";
-import { COMPANY, CONTACT_EMAIL, INFO_EMAIL, services } from "./content";
-
-const nav = [
-  { href: "#journey", label: "Journey" },
-  { href: "#products", label: "Products" },
-  { href: "#trust", label: "Trust" },
-  { href: "#services", label: "Services" },
-];
+import { SdlcTreeLazy } from "@/components/SdlcTreeLazy";
+import { SiteFooter } from "@/components/SiteFooter";
+import { SectionRail } from "@/components/SectionRail";
+import { SiteHeader } from "@/components/SiteHeader";
+import { aboutLines, aboutPillars, aboutVision, CONTACT_EMAIL, INFO_EMAIL, services } from "./content";
 
 const primaryBtn = "rounded-md bg-foreground px-5 py-2.5 font-medium text-background";
 const ghostBtn = "rounded-md border border-border px-5 py-2.5 font-medium hover:border-accent";
@@ -40,42 +35,21 @@ export default function Home() {
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
-        <Wrap>
-          <div className="relative flex h-14 items-center justify-between">
-            <a href="#" aria-label="7C Labs home"><Logo /></a>
-            <nav aria-label="Primary" className="hidden gap-7 text-sm text-muted md:flex">
-              {nav.map((n) => (
-                <a key={n.href} href={n.href} className="hover:text-foreground">{n.label}</a>
-              ))}
-            </nav>
-            <div className="flex items-center gap-3">
-              <OpenChatButton className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background">Talk to us</OpenChatButton>
-              <details className="md:hidden">
-                <summary className="cursor-pointer list-none rounded-md border border-border px-3 py-1.5 text-sm">Menu</summary>
-                <nav aria-label="Mobile" className="absolute right-0 top-14 grid w-48 gap-1 rounded-md border border-border bg-surface p-2 text-sm">
-                  {nav.map((n) => (
-                    <a key={n.href} href={n.href} className="rounded px-3 py-2 hover:bg-border">{n.label}</a>
-                  ))}
-                </nav>
-              </details>
-            </div>
-          </div>
-        </Wrap>
-      </header>
+      <SiteHeader />
+      <SectionRail />
 
       <main id="main">
-        <section className="relative">
+        <section id="top" className="relative">
           <div className="hero-bg" aria-hidden />
           <Wrap>
-            <div className="relative flex min-h-[calc(100svh-3.5rem)] flex-col justify-center gap-8 py-10 sm:py-14">
+            <div className="relative flex min-h-[calc(100svh-5rem)] flex-col justify-center gap-8 py-10 sm:py-14">
               <div>
                 <p className="w-fit rounded-full border border-border px-3 py-1 font-mono text-xs text-muted">
                   <span className="status-live text-ok" aria-hidden>&#9679; </span>
                   SDLC &middot; ADLC &middot; AI monitoring
                 </p>
                 <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-6xl">
-                  Your software lifecycle, run by <span className="gradient-text">AI agents you control.</span>
+                  Your software lifecycle, run by <span className="gradient-text inline-block">AI agents you control.</span>
                 </h1>
                 <p className="mt-4 max-w-2xl text-lg text-muted sm:text-xl">
                   Nine agents take you from architecture to observability, with security built in.
@@ -91,16 +65,18 @@ export default function Home() {
           </Wrap>
         </section>
 
-        <SdlcTree />
+        <div id="journey">
+          <SdlcTreeLazy />
+        </div>
 
-        <section id="products" className="scroll-mt-14 border-t border-border py-20">
+        <section id="products" className="scroll-mt-20 py-20">
           <Wrap>
             <Title eyebrow="Products">Four products. One platform.</Title>
             <div className="mt-10"><ProductCards /></div>
           </Wrap>
         </section>
 
-        <section id="trust" className="scroll-mt-14 border-t border-border py-20">
+        <section id="trust" className="scroll-mt-20 py-20">
           <Wrap>
             <div className="mx-auto max-w-2xl text-center">
               <Title eyebrow="Trust">AI proposes. You decide.</Title>
@@ -109,14 +85,14 @@ export default function Home() {
           </Wrap>
         </section>
 
-        <section id="services" className="scroll-mt-14 border-t border-border py-20">
+        <section id="services" className="scroll-mt-20 py-20">
           <Wrap>
             <Title eyebrow="Services">Software, plus the people to land it.</Title>
-            <ol className="mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
+            <ol className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
               {services.map((s, i) => (
-                <li key={s.name} className="border-t border-border pt-4">
+                <li key={s.name}>
                   <Reveal delay={i * 80}>
-                    <span className="font-mono text-xs text-muted">0{i + 1}</span>
+                    <span className="font-mono text-xs text-accent">0{i + 1}</span>
                     <h3 className="mt-1 text-lg font-semibold">{s.name}</h3>
                     <p className="mt-1 text-sm text-muted">{s.text}</p>
                   </Reveal>
@@ -126,7 +102,43 @@ export default function Home() {
           </Wrap>
         </section>
 
-        <section id="contact" className="scroll-mt-14 border-t border-border py-24">
+        <section id="about" className="scroll-mt-20 py-24">
+          <Wrap>
+            <Title eyebrow="About us">Built by platform engineers, for platform teams.</Title>
+            <div className="mt-12 grid gap-12 lg:grid-cols-[1.5fr_1fr]">
+              <div className="space-y-5">
+                {aboutLines.map((line, i) => (
+                  <Reveal key={line} delay={i * 120}>
+                    <p className={i === 2 ? "text-2xl font-semibold sm:text-3xl" : "text-lg text-muted sm:text-xl"}>{line}</p>
+                  </Reveal>
+                ))}
+                <Reveal delay={600}>
+                  <p className="pt-2 text-xl font-semibold sm:text-2xl">
+                    <span className="font-mono text-sm text-accent">Our vision </span>
+                    <span className="gradient-text">{aboutVision}</span>
+                  </p>
+                </Reveal>
+              </div>
+              <ul className="space-y-4">
+                {aboutPillars.map((p, i) => (
+                  <li key={p.title}>
+                    <Reveal delay={i * 120}>
+                      <div className="card-glow rounded-2xl border border-border bg-surface/80 p-5 backdrop-blur">
+                        <h3 className="font-semibold">{p.title}</h3>
+                        <p className="mt-1 text-sm text-muted">{p.text}</p>
+                      </div>
+                    </Reveal>
+                  </li>
+                ))}
+                <li>
+                  <a href="/careers" className="inline-block pt-1 text-sm text-accent hover:underline">Join the team &rarr;</a>
+                </li>
+              </ul>
+            </div>
+          </Wrap>
+        </section>
+
+        <section id="contact" className="scroll-mt-20 py-24">
           <Wrap>
             <div className="mx-auto max-w-2xl text-center">
               <Title eyebrow="Get started">Tell us what you are building.</Title>
@@ -144,9 +156,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-border py-8 text-center text-xs text-muted">
-        &copy; {COMPANY} &middot; 7clabs.com
-      </footer>
+      <SiteFooter />
     </>
   );
 }

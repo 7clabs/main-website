@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { AiOpsBackground } from "@/components/AiOpsBackground";
 import { ChatWidget } from "@/components/ChatWidget";
 import "./globals.css";
 
-const geistSans = Geist({
+// One clean grotesque for headings and body; weights run from light to bold.
+const geistSans = Hanken_Grotesk({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-// Technical, slightly geometric display face for headings.
-const display = Space_Grotesk({
-  variable: "--font-display",
   subsets: ["latin"],
 });
 
@@ -40,7 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AiOpsBackground />

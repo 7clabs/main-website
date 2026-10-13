@@ -24,7 +24,8 @@ export function FlowRibbon() {
 
   return (
     <div onMouseLeave={() => setHeld(null)} className="rounded-2xl border border-border bg-surface/70 p-4 backdrop-blur sm:p-6">
-      <div className="overflow-x-auto pb-1">
+      {/* Padding gives the glow ring and the enlarged active circle room, so the scroll box never clips them. */}
+      <div className="-mx-2 overflow-x-auto px-2 pb-2 pt-7">
         <ol className="flex min-w-[700px] items-start" aria-label="The nine stages of the lifecycle">
           {treeStages.map((st, i) => {
             const lit = i <= idx;
@@ -32,10 +33,15 @@ export function FlowRibbon() {
             return (
               <li key={st.short} className="relative flex flex-1 flex-col items-center">
                 {i > 0 && (
+                  // The line runs from one circle's edge to the next, with a small gap, so it never touches them.
                   <span
                     aria-hidden
-                    className="absolute right-1/2 top-[21px] h-0.5 w-full transition-colors duration-500"
-                    style={{ background: i <= idx ? `rgb(${st.color})` : "var(--border)" }}
+                    className="absolute top-[21px] h-0.5 rounded-full transition-colors duration-500"
+                    style={{
+                      right: "calc(50% + 31px)",
+                      width: "calc(100% - 62px)",
+                      background: i <= idx ? `rgb(${st.color})` : "var(--border)",
+                    }}
                   />
                 )}
                 <button
