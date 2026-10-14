@@ -1,20 +1,16 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, JetBrains_Mono, Newsreader } from "next/font/google";
-import { AiOpsBackground } from "@/components/AiOpsBackground";
+import { Outfit, JetBrains_Mono } from "next/font/google";
 import { ChatWidget } from "@/components/ChatWidget";
+import { BootLoader } from "@/components/BootLoader";
+import { PageTransition } from "@/components/PageTransition";
+import { SceneLayer } from "@/components/SceneLayer";
+import { SmoothScroll } from "@/components/SmoothScroll";
 import "./globals.css";
 
-// One clean grotesque for headings and body; weights run from light to bold.
-const geistSans = Hanken_Grotesk({
-  variable: "--font-geist-sans",
+// One open-licence geometric sans for headings and body (self-hosted by next/font); weights run light to bold.
+const sans = Outfit({
+  variable: "--font-sans-display",
   subsets: ["latin"],
-});
-
-// Editorial serif, used for headlines on the light theme.
-const serif = Newsreader({
-  variable: "--font-serif",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
 });
 
 // Terminal-style mono for labels, logs and status text.
@@ -42,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
@@ -50,13 +46,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}",
+              "try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}",
           }}
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <AiOpsBackground />
-        {children}
+        <SmoothScroll />
+        <SceneLayer />
+        <BootLoader />
+        <PageTransition>{children}</PageTransition>
         <ChatWidget />
       </body>
     </html>

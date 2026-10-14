@@ -182,7 +182,7 @@ export function ChatWidget() {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        aria-label={open ? "Close chat" : "Open chat with the 7C Labs assistant"}
+        aria-label={open ? "Close chat" : "Ask 7C: open chat with the 7C Labs assistant"}
         className="group fixed bottom-5 right-4 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-accent to-accent2 py-3 pl-4 pr-5 font-medium text-background shadow-xl shadow-accent/30 transition hover:scale-105"
       >
         {!open && <span className="chat-ping absolute inset-0 -z-10 rounded-full bg-accent/50" aria-hidden />}

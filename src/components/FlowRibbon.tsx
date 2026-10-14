@@ -6,6 +6,20 @@ import { treeStages } from "@/app/content";
 const N = treeStages.length;
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** Black or white, whichever reads better on a stage colour ("r,g,b"). */
+function inkOn(color: string) {
+  const [r, g, b] = color.split(",").map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // Whichever of black and white gives the higher contrast ratio.
+  return (lum + 0.05) / 0.05 > 1.05 / (lum + 0.05) ? "#000000" : "#ffffff";
+}
+
+/** A stage colour as text on the page background: pulled toward the foreground so it stays readable on both themes. */
+const textOn = (color: string) => `color-mix(in srgb, rgb(${color}) 55%, var(--foreground))`;
+
 /**
  * The whole lifecycle on one line. A pulse walks through the nine stages on its own;
  * hovering or focusing a stage takes over and shows what its agent does and who approves.
@@ -49,12 +63,12 @@ export function FlowRibbon() {
                   onFocus={() => setHeld(i)}
                   onBlur={() => setHeld(null)}
                   aria-current={on ? "step" : undefined}
-                  aria-label={`Stage ${i + 1}: ${st.title}`}
+                  aria-label={`${pad(i + 1)} Stage ${i + 1}: ${st.title}`}
                   className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full border-2 font-mono text-sm transition-all duration-300"
                   style={{
                     borderColor: `rgb(${st.color})`,
                     background: lit ? `rgb(${st.color})` : "var(--background)",
-                    color: lit ? "var(--background)" : `rgb(${st.color})`,
+                    color: lit ? inkOn(st.color) : textOn(st.color),
                     transform: on ? "scale(1.18)" : "scale(1)",
                     boxShadow: on ? `0 0 0 6px rgba(${st.color},0.2), 0 0 22px rgba(${st.color},0.7)` : "none",
                   }}
@@ -78,7 +92,7 @@ export function FlowRibbon() {
 
       <div key={idx} className="fade-in mt-5 grid gap-4 border-t border-border pt-4 sm:grid-cols-[1fr_auto_1fr] sm:items-start sm:gap-6">
         <div>
-          <p className="font-mono text-xs" style={{ color: `rgb(${s.color})` }}>&#9679; {s.agent} does</p>
+          <p className="font-mono text-xs" style={{ color: textOn(s.color) }}>&#9679; {s.agent} does</p>
           <p className="mt-1 text-sm sm:text-base">{s.does}</p>
         </div>
         <span aria-hidden className="hidden text-2xl text-muted sm:block">&rarr;</span>

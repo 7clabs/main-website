@@ -21,19 +21,19 @@ export default function Careers() {
   return (
     <>
       <SiteHeader />
-      <main id="main" className="mx-auto w-full max-w-6xl px-6 pb-20 pt-16 sm:pt-24">
+      <main id="main" className="mx-auto w-full max-w-[var(--page-max)] px-[var(--gutter)] pb-24 pt-16 sm:pt-24">
         <Reveal>
-          <p className="font-mono text-sm text-accent">Careers &middot; Internships</p>
-          <h1 className="mt-2 max-w-3xl text-4xl font-semibold tracking-tight sm:text-6xl">
+          <p className="label text-accent">Careers &middot; Internships</p>
+          <h1 className="mt-3 max-w-[22ch] text-[length:var(--text-h1)]">
             Help us make <span className="gradient-text">secure, compliant platforms</span> easy to run.
           </h1>
-          <p className="mt-5 max-w-2xl text-lg text-muted sm:text-xl">
+          <p className="mt-6 max-w-[52ch] text-[length:var(--text-body-lg)] text-muted">
             Work alongside experienced engineers on the platform itself. We are looking for interns with a development
             or platform understanding who want to simplify how full-fledged platforms are managed.
           </p>
         </Reveal>
 
-        <h2 className="mt-16 font-mono text-sm text-muted">Open intern positions</h2>
+        <h2 className="label mt-16 text-muted">Open intern positions</h2>
         <ul className="mt-4 grid gap-5 lg:grid-cols-3">
           {roles.map((r, i) => (
             <li key={r.id}>
@@ -42,11 +42,11 @@ export default function Careers() {
                   className="card-glow flex h-full flex-col rounded-2xl border bg-surface/80 p-6 backdrop-blur"
                   style={{ borderColor: `rgba(${r.color},0.4)` }}
                 >
-                  <p className="font-mono text-xs" style={{ color: `rgb(${r.color})` }}>&#9679; Intern</p>
+                  <p className="label" style={{ color: `rgb(${r.color})` }}>&#9679; Intern</p>
                   <h3 className="mt-2 text-xl font-semibold">{r.title}</h3>
                   <p className="mt-2 text-sm text-muted">{r.pitch}</p>
 
-                  <p className="mt-5 font-mono text-xs text-muted">YOU WILL WORK ON</p>
+                  <p className="label mt-5 text-muted">YOU WILL WORK ON</p>
                   <ul className="mt-2 space-y-1.5 text-sm">
                     {r.work.map((w) => (
                       <li key={w} className="flex gap-2">
@@ -56,19 +56,21 @@ export default function Careers() {
                     ))}
                   </ul>
 
-                  <p className="mt-5 font-mono text-xs text-muted">WHAT HELPS</p>
+                  <p className="label mt-5 text-muted">WHAT HELPS</p>
                   <ul className="mt-2 flex flex-wrap gap-1.5">
-                    {r.skills.map((s) => (
-                      <li key={s} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted">{s}</li>
+                    {r.skills.map((sk) => (
+                      <li key={sk} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted">{sk}</li>
                     ))}
                   </ul>
 
-                  <a
-                    href={applyHref(r.title)}
-                    className="mt-6 inline-block w-fit rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-                  >
-                    Apply by email
-                  </a>
+                  <div className="mt-auto pt-6">
+                    <a
+                      href={applyHref(r.title)}
+                      className="inline-block w-fit rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+                    >
+                      Apply by email
+                    </a>
+                  </div>
                 </article>
               </Reveal>
             </li>

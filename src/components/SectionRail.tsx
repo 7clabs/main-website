@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { jumpTo } from "@/lib/nav";
 
 const sections = [
   { id: "top", label: "Start" },
@@ -34,12 +35,7 @@ export function SectionRail() {
     return () => io.disconnect();
   }, []);
 
-  function go(id: string) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-  }
+  const go = (id: string) => jumpTo(id);
 
   return (
     <nav aria-label="Page sections" className="fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-end gap-1 min-[1100px]:flex">

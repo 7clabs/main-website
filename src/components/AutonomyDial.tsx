@@ -17,10 +17,10 @@ export function AutonomyDial() {
 
   return (
     <div onMouseLeave={() => setHeld(null)}>
-      <div className="relative grid grid-cols-3 rounded-full border border-border bg-surface p-1" role="group" aria-label="Autonomy level">
+      <div className="relative grid grid-cols-3 border-y border-border" role="group" aria-label="Autonomy level">
         <span
           aria-hidden
-          className="absolute inset-y-1 w-[calc((100%-0.5rem)/3)] rounded-full bg-gradient-to-r from-accent/30 to-accent2/30 ring-1 ring-accent/60 transition-transform duration-500 ease-out"
+          className="absolute -top-px h-0.5 w-1/3 bg-accent transition-transform duration-500 [transition-timing-function:var(--ease-in-out)]"
           style={{ transform: `translateX(${idx * 100}%)` }}
         />
         {levels.map((l, i) => (
@@ -30,9 +30,9 @@ export function AutonomyDial() {
             onFocus={() => setHeld(i)}
             onBlur={() => setHeld(null)}
             aria-pressed={i === idx}
-            className={`relative z-10 rounded-full px-3 py-2.5 text-sm font-medium transition-colors ${i === idx ? "text-foreground" : "text-muted"}`}
+            className={`relative z-10 px-3 py-4 text-sm font-medium transition-colors ${i === idx ? "text-foreground" : "text-muted"}`}
           >
-            <span className="mr-1 font-mono text-xs opacity-60">L{i + 1}</span>
+            <span className="mr-1 font-mono text-xs text-muted">L{i + 1}</span>
             {l.name}
           </button>
         ))}

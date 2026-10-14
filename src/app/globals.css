@@ -1,141 +1,56 @@
 @import "tailwindcss";
-
-/*
- * Palette taken from the 7C Labs logo: royal blue into cyan, a violet accent, charcoal slate.
- * Light is the default for :root; the dark theme is applied with data-theme="dark" on <html>.
- * The --rgb-* triplets feed the canvas drawing code.
- */
-:root {
-  --background: #f6f8fc;
-  --foreground: #121a2b;
-  --muted: #475672;
-  --border: #cfd8e6;
-  --surface: #ffffff;
-  --ok: #15803d;
-  --warn: #b45309;
-  --err: #c62828;
-  --focus: #1f4fd8;
-  --accent: #1f4fd8;
-  --accent2: #0891b2;
-  --grid: rgba(31, 79, 216, 0.07);
-  --rgb-accent: 31, 79, 216;
-  --rgb-accent2: 8, 145, 178;
-}
-
-html[data-theme="dark"] {
-  --background: #0b1220;
-  --foreground: #e8eef9;
-  --muted: #92a2be;
-  --border: #22304a;
-  --surface: #111b2e;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --err: #f87171;
-  --focus: #6b9bff;
-  --accent: #5b8cff;
-  --accent2: #22d3ee;
-  --grid: rgba(91, 140, 255, 0.07);
-  --rgb-accent: 91, 140, 255;
-  --rgb-accent2: 34, 211, 238;
-}
+@import "../styles/tokens.css";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-border: var(--line);
   --color-surface: var(--surface);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-err: var(--err);
   --color-accent: var(--accent);
-  --color-accent2: var(--accent2);
-  --font-sans: var(--font-geist-sans);
+  --color-accent2: var(--accent);
+  --font-sans: var(--font-sans-display);
   --font-mono: var(--font-mono-jb);
 }
 
-h1, h2, h3 {
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-}
-
-/* Light theme: editorial serif headlines, heavier body weight and sharper text for legibility. */
-.font-display { font-family: var(--font-geist-sans), system-ui, sans-serif; }
-html:not([data-theme="dark"]) h1,
-html:not([data-theme="dark"]) h2,
-html:not([data-theme="dark"]) .font-display {
-  font-family: var(--font-serif), Georgia, serif;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-html:not([data-theme="dark"]) body { font-weight: 450; -webkit-font-smoothing: antialiased; }
-html:not([data-theme="dark"]) .gradient-text { font-style: italic; }
-
-html { scroll-behavior: smooth; color-scheme: light; }
+/* The root size is fluid: 16px on phones, about 19px at 1440 wide, 22px at 1920, capped at 24px. */
+html { color-scheme: light; font-size: clamp(16px, 0.7vw + 9px, 24px); }
 html[data-theme="dark"] { color-scheme: dark; }
 
-/* A faint engineering grid under everything, like a blueprint. */
+h1, h2, h3 {
+  font-family: var(--font-sans-display), system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: var(--track-display);
+  line-height: var(--leading-display);
+}
+.font-display { font-family: var(--font-sans-display), system-ui, sans-serif; }
+
 body {
-  background-color: var(--background);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 64px 64px;
-  background-attachment: fixed;
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-  transition: background-color 0.3s, color 0.3s;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans-display), system-ui, sans-serif;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color var(--dur-base), color var(--dur-base);
 }
 
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Small labels: wide tracking, uppercase. */
+.label { font-size: var(--text-label); font-weight: 500; letter-spacing: var(--track-label); text-transform: uppercase; }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .tabular { font-variant-numeric: tabular-nums; }
 
-.gradient-text {
-  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent));
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 6s linear infinite;
-}
-
-/* Animated grid + glow behind the hero */
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  mask-image: linear-gradient(to bottom, black 55%, transparent);
-}
-/* Aurora light behind the hero: two slow-drifting colour fields. */
-.hero-bg::before {
-  content: "";
-  position: absolute;
-  top: -30%;
-  left: -10%;
-  width: 55rem;
-  height: 34rem;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 26%, transparent), transparent);
-  animation: drift-a 14s ease-in-out infinite alternate;
-}
-.hero-bg::after {
-  content: "";
-  position: absolute;
-  top: -10%;
-  right: -10%;
-  width: 50rem;
-  height: 32rem;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent2) 26%, transparent), transparent);
-  animation: drift-b 17s ease-in-out infinite alternate;
-}
+/* The accent text effect is a flat accent: colour comes from the scene, not from gradients. */
+.gradient-text { color: var(--accent); }
 
 /* Scrolling event ticker */
 .marquee { animation: marquee 48s linear infinite; }
 .marquee:hover { animation-play-state: paused; }
 @keyframes marquee { to { transform: translateX(-50%); } }
-@keyframes drift-a { to { transform: translate(14rem, 6rem) scale(1.15); } }
-@keyframes drift-b { to { transform: translate(-12rem, 8rem) scale(1.1); } }
 
 .card-glow {
   position: relative;
@@ -193,9 +108,15 @@ body {
 @keyframes status-pulse { 50% { opacity: 0.3; } }
 .status-live { animation: status-pulse 2s ease-in-out infinite; }
 
+/* Boot loader: three pulsing dots. If scripts never run, the curtain still lifts by itself. */
+.boot { animation: boot-fallback 0.01s linear 9s forwards; }
+.boot-dot { animation: boot-pulse 1s var(--ease-in-out) infinite; }
+@keyframes boot-pulse { 0%, 100% { opacity: 0.2; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes boot-fallback { to { opacity: 0; visibility: hidden; } }
+
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  .gradient-text, .hero-bg::before, .hero-bg::after, .cursor::after, .status-live, .flow, .marquee, .fade-in, .spin-slow, .chat-ping, .tilt:hover .glyph * { animation: none; }
+  .boot-dot { animation: none; }
+  .gradient-text, .cursor::after, .status-live, .flow, .marquee, .fade-in, .spin-slow, .chat-ping, .tilt:hover .glyph * { animation: none; }
   .tilt { transform: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .card-glow:hover { transform: none; }

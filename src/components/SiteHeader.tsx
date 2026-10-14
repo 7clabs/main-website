@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { NavLink } from "./NavLink";
 import { Logo } from "./Logo";
+import { NavPhysics } from "./NavPhysics";
 import { OpenChatButton } from "./ChatWidget";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -15,12 +17,12 @@ const nav = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 bg-background/75 backdrop-blur-md">
-      <div className="mx-auto w-full max-w-6xl px-6">
+      <NavPhysics className="mx-auto w-full max-w-[var(--page-max)] px-[var(--gutter)]">
         <div className="relative flex h-20 items-center justify-between">
           <Link href="/" aria-label="7C Labs home"><Logo /></Link>
           <nav aria-label="Primary" className="hidden gap-9 text-[1.0625rem] font-medium text-muted md:flex">
             {nav.map((n) => (
-              <Link key={n.href} href={n.href} className="transition-colors hover:text-foreground">{n.label}</Link>
+              <NavLink key={n.href} href={n.href} className="transition-colors hover:text-foreground">{n.label}</NavLink>
             ))}
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -30,13 +32,13 @@ export function SiteHeader() {
               <summary className="cursor-pointer list-none whitespace-nowrap rounded-full border border-border px-3 py-2 text-sm sm:px-4 sm:py-2.5 sm:text-base">Menu</summary>
               <nav aria-label="Mobile" className="absolute right-0 top-[4.5rem] grid w-52 gap-1 rounded-2xl border border-border bg-surface p-2 text-base">
                 {nav.map((n) => (
-                  <Link key={n.href} href={n.href} className="rounded-lg px-3 py-2.5 hover:bg-border">{n.label}</Link>
+                  <NavLink key={n.href} href={n.href} className="rounded-lg px-3 py-2.5 hover:bg-border">{n.label}</NavLink>
                 ))}
               </nav>
             </details>
           </div>
         </div>
-      </div>
+      </NavPhysics>
     </header>
   );
 }

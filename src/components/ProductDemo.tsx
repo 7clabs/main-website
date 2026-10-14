@@ -1,22 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { demos, products } from "@/app/content";
+import { loadMotion } from "@/lib/motionLib";
+import { productsState } from "@/lib/products";
+import { useScene } from "@/lib/sceneStore";
+import { motion } from "@/lib/tokens";
 import { OPEN_CHAT_EVENT } from "./ChatWidget";
 
 const MOTION = "(prefers-reduced-motion: reduce)";
 
-/** Steps 0..length-1 on an interval; jumps to the final state for reduced motion. */
-function useTick(ms: number, length: number) {
+/** True while the element is on screen. The demos only run while someone can see them. */
+function useInView(ref: React.RefObject<HTMLElement | null>) {
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setSeen(e.isIntersecting), { threshold: 0.2 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  return seen;
+}
+
+/** Steps 0..length-1 on an interval, only while visible; jumps to the final state for reduced motion. */
+function useTick(ms: number, length: number, run = true) {
   const [t, setT] = useState(0);
   useEffect(() => {
     if (window.matchMedia(MOTION).matches) {
       const id = setTimeout(() => setT(length - 1), 0);
       return () => clearTimeout(id);
     }
+    if (!run) return;
     const id = setInterval(() => setT((x) => (x + 1) % length), ms);
     return () => clearInterval(id);
-  }, [ms, length]);
+  }, [ms, length, run]);
   return t;
 }
 
@@ -65,7 +83,7 @@ const glyphs: Record<string, React.ReactNode> = {
 
 function Frame({ file, badge, color, children }: { file: string; badge: string; color: string; children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_20px_60px_-30px_rgba(var(--rgb-accent),0.45)]">
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface/70 backdrop-blur-sm">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-err/70" />
@@ -73,7 +91,7 @@ function Frame({ file, badge, color, children }: { file: string; badge: string; 
           <span className="h-2.5 w-2.5 rounded-full bg-ok/70" />
           <span className="ml-3 font-mono text-xs text-muted">{file}</span>
         </div>
-        <span className="rounded-full border px-2.5 py-0.5 font-mono text-[11px]" style={{ borderColor: `rgba(${color},0.5)`, color: `rgb(${color})` }}>
+        <span className="rounded-full border px-2.5 py-0.5 font-mono text-[11px]" style={{ borderColor: `rgba(${color},0.5)`, color: `color-mix(in srgb, rgb(${color}) 55%, var(--foreground))` }}>
           {badge}
         </span>
       </div>
@@ -92,8 +110,12 @@ const logs = [
   "14:31:44  artifact signed, SBOM attached",
 ];
 
-function DeliveryMock({ color }: { color: string }) {
-  const t = useTick(900, checks.length + 3);
+function DeliveryMock({ color, run }: { color: string; run: boolean }) {
+  const t = useTick(900, checks.length + 3, run);
+  // Each gate that passes flashes the object behind the page.
+  useEffect(() => {
+    if (t > 0 && t <= checks.length) productsState.pulse = 1;
+  }, [t]);
   return (
     <Frame file="pipeline / checkout-api" badge={`build #482 · ${Math.min(t, 6)}/6 gates`} color={color}>
       <ul className="grid gap-2 sm:grid-cols-2">
@@ -103,8 +125,8 @@ function DeliveryMock({ color }: { color: string }) {
           return (
             <li key={c} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
               <span>{c}</span>
-              <span className={`font-mono text-xs ${done ? "text-ok" : running ? "status-live text-accent" : "text-muted"}`}>
-                {done ? "✓ passed" : running ? "● running" : "queued"}
+              <span className={`font-mono text-xs ${done ? "text-ok" : running ? "text-accent" : "text-muted"}`}>
+                {done ? "✓ passed" : running ? <><span className="status-live" aria-hidden>●</span> running</> : "queued"}
               </span>
             </li>
           );
@@ -121,8 +143,8 @@ function DeliveryMock({ color }: { color: string }) {
   );
 }
 
-function ResilienceMock({ color }: { color: string }) {
-  const t = useTick(1400, 4);
+function ResilienceMock({ color, run }: { color: string; run: boolean }) {
+  const t = useTick(1400, 4, run);
   const pct = [10, 25, 50, 50][t];
   const budget = 82 - t;
   const series = [212, 205, 219, 208, 214, 203, 212].map((v, i) => v + ((t + i) % 3) * 4);
@@ -164,8 +186,8 @@ const aiRows = [
   { svc: "ops-copilot", model: "Model C", req: 960, p95: 4.4, cost: 9.05 },
 ];
 
-function AiMock({ color }: { color: string }) {
-  const t = useTick(1400, 40);
+function AiMock({ color, run }: { color: string; run: boolean }) {
+  const t = useTick(1400, 40, run);
   const rows = aiRows.map((r, i) => ({ ...r, req: r.req + t * (i + 3) * 7, cost: r.cost + t * (i + 2) * 0.03, p95: Math.max(0.8, r.p95 + Math.sin(t / 2 + i) * 0.35) }));
   const total = rows.reduce((s, r) => s + r.cost, 0);
   const req = rows.reduce((s, r) => s + r.req, 0);
@@ -221,8 +243,8 @@ const costBase = [
   { name: "web-frontend", v: 22 },
 ];
 
-function CloudMock({ color }: { color: string }) {
-  const t = useTick(1600, 6);
+function CloudMock({ color, run }: { color: string; run: boolean }) {
+  const t = useTick(1600, 6, run);
   return (
     <Frame file="plan / eu-west" badge="awaiting approval" color={color}>
       <div className="grid gap-6 sm:grid-cols-[1.3fr_1fr]">
@@ -255,7 +277,7 @@ function CloudMock({ color }: { color: string }) {
   );
 }
 
-const mocks: Record<string, (p: { color: string }) => React.ReactNode> = {
+const mocks: Record<string, (p: { color: string; run: boolean }) => React.ReactNode> = {
   "secure-delivery": (p) => <DeliveryMock {...p} />,
   resilience: (p) => <ResilienceMock {...p} />,
   "ai-monitor": (p) => <AiMock {...p} />,
@@ -269,7 +291,7 @@ function AgentCard({ id, color }: { id: string; color: string }) {
   const typed = useTyped(answer, 1100);
   const lines = typed.split("\n");
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_20px_60px_-30px_rgba(var(--rgb-accent),0.35)]">
+    <div className="rounded-2xl border border-border bg-surface/70 p-5 backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 font-mono text-xs text-muted">
           <span className="status-live text-ok" aria-hidden>&#9679;</span> 7C agent
@@ -295,21 +317,70 @@ function AgentCard({ id, color }: { id: string; color: string }) {
 
 /** Product demo tabs: pick a product to watch its agent answer a question beside a live view. */
 export function ProductDemo() {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState(0); // the tab you picked, shown immediately
+  const [shown, setShown] = useState(0); // the panel on screen; it lags one crossfade behind
+  const [fading, setFading] = useState(false);
   const [auto, setAuto] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
-  const p = products[tab];
+  const root = useRef<HTMLDivElement>(null);
+  const swap = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const inView = useInView(root);
+  const gl = useScene((s) => s.gl);
+  const p = products[shown];
   const d = demos[p.id];
 
+  // Tell the scene where Products sits, so the backdrop and camera know when to appear.
   useEffect(() => {
-    if (!auto || window.matchMedia(MOTION).matches) return;
-    const id = setInterval(() => setTab((x) => (x + 1) % products.length), 14000);
+    if (gl !== "on") return;
+    const sec = document.getElementById("products");
+    if (!sec) return;
+    const measure = () => {
+      productsState.top = sec.getBoundingClientRect().top + window.scrollY;
+      productsState.height = sec.offsetHeight;
+      productsState.vh = window.innerHeight;
+    };
+    measure();
+    productsState.on = true;
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      productsState.on = false;
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [gl]);
+
+  // One move for everything: the camera orbits to the new angle while the content crossfades.
+  const go = useCallback((i: number) => {
+    setTab(i);
+    productsState.tab = i;
+    const reduced = window.matchMedia(MOTION).matches;
+    if (!reduced) {
+      void loadMotion().then(({ gsap }) => gsap.to(productsState, { theta: (i * Math.PI) / 2, duration: motion.cameraMs / 1000, ease: motion.cameraEase, overwrite: true }));
+    }
+    clearTimeout(swap.current);
+    if (reduced) {
+      setShown(i);
+      return;
+    }
+    setFading(true);
+    swap.current = setTimeout(() => {
+      setShown(i);
+      setFading(false);
+    }, 260);
+  }, []);
+  useEffect(() => () => clearTimeout(swap.current), []);
+
+  useEffect(() => {
+    if (!auto || !inView || window.matchMedia(MOTION).matches) return;
+    const id = setInterval(() => go((productsState.tab + 1) % products.length), 14000);
     return () => clearInterval(id);
-  }, [auto]);
+  }, [auto, inView, go]);
 
   function pick(i: number) {
     setAuto(false);
-    setTab(i);
+    go(i);
   }
   function onKey(e: React.KeyboardEvent) {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
@@ -320,7 +391,7 @@ export function ProductDemo() {
   }
 
   return (
-    <div>
+    <div ref={root}>
       <div ref={listRef} role="tablist" aria-label="Products" onKeyDown={onKey} className="flex gap-1 overflow-x-auto border-b border-border">
         {products.map((pr, i) => (
           <button
@@ -346,11 +417,18 @@ export function ProductDemo() {
         ))}
       </div>
 
-      <div key={p.id} role="tabpanel" id={`panel-${p.id}`} aria-labelledby={`tab-${p.id}`} className="fade-in">
-        <p className="mt-6 max-w-2xl text-lg text-muted">{p.line}</p>
+      <div
+        key={p.id}
+        role="tabpanel"
+        id={`panel-${p.id}`}
+        aria-labelledby={`tab-${p.id}`}
+        className="fade-in"
+        style={{ opacity: fading ? 0 : 1, transform: fading ? "translateY(10px)" : "none", transition: "opacity 260ms var(--ease-in-out), transform 260ms var(--ease-in-out)" }}
+      >
+        <p className="mt-8 max-w-3xl text-[length:var(--text-body-lg)] text-muted">{p.line}</p>
         <div className="mt-6 grid items-start gap-6 lg:grid-cols-[0.9fr_1.4fr]">
           <AgentCard id={p.id} color={p.color} />
-          {mocks[p.id]({ color: p.color })}
+          {mocks[p.id]({ color: p.color, run: inView && !fading })}
         </div>
 
         <ul className="mt-10 grid gap-8 md:grid-cols-3">
